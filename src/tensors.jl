@@ -1,6 +1,18 @@
-import LinearAlgebra.svd
+function contract(x, y, idx1, idx2)
+    sz = length(size(x))
+    dims1 = [i == idx1 ? 0 : i for i = 1:sz]
+    dims2 = [j == idx2 ? 0 : sz + j for j = 1:length(size(y))]
+    return tensorcontract(x, dims1, y, dims2)
+end
 
-function combineidxs(x, idxs::Vector{Int})
+
+function trace(x, idx1, idx2)
+    sz = length(size(x))
+    return tensortrace(x, [i == idx1 || i == idx2 ? 0 : i for i = 1:sz])
+end
+
+
+function combineidxs(x, idxs::Vector{})
     # Make a copy and get the dimensions of the grouping indexs
     y = copy(x)
     idxs = sort(idxs)
@@ -15,7 +27,7 @@ function combineidxs(x, idxs::Vector{Int})
     shape = size(y)
     newshape = [shape[i] for i = 1:length(shape)-length(idxs)]
     push!(newshape, prod(shape[length(shape)+1-length(idxs):end]))
-    return reshape(y, tuple(newshape...)), (idxs, dims)
+    return reshape(y, tuple(newshape...)), (copy(idxs), dims)
 end
 
 function uncombineidxs(x, cmb)
@@ -30,8 +42,7 @@ function uncombineidxs(x, cmb)
     y = reshape(y, tuple(newdims...))
 
     # Permute indices back to the correct places
-    println(size(y))
-    for i = 1:length(size(cmb[1]))
+    for i = 1:size(cmb[1])[1]
         y = moveidx(y, offset-1+i, cmb[1][i])
     end
     return y
@@ -65,14 +76,63 @@ function moveidx(x, currentidx::Int, newidx::Int)
 end
 
 
-function svd(x, idx::int; kwargs...)
+function svd(x, idx::Int; kwargs...)
     # Get truncation parameters
     cutoff::Float64 = get(kwargs, :cutoff, 0)
     maxdim::Int = get(kwargs, :maxdim, 0)
     mindim::Int = get(kwargs, :mindim, 1)
 
-    # Make a copy
+    # Make a copy, get the dimensions
     y = copy(x)
+    sz = length(size(y))
 
+    # See if index is -1
+    idx = idx == -1 ? sz : idx
 
+    # Group all indexs together and push SVD axis to the end
+    idxs = []
+    for i = 1:sz
+        i != idx && push!(idxs, i)
+    end
+    y, cmb = combineidxs(y, idxs)
+    y = moveidx(y, 1, -1)
+
+    # Apply SVD; try divide and conquer, else use rectangular approach
+    local t
+    try
+        t = svd(y, alg=LinearAlgebra.DivideAndConquer())
+    catch e
+        t = svd(y, alg=LinearAlgebra.QRIteration())
+    end
+    # Assign SVD to individiual matrices
+    U = t.U
+    S = t.S
+    V = t.Vt
+
+    # Determine the number of singular values to keep
+    sz = size(S)[1]
+    mindim = min(mindim, sz)
+    maxdim = (maxdim == 0 || maxdim > sz) ? sz : maxdim
+    idxs = findfirst(S == 0)
+    maxdim = idxs == nothing ? maxdim : min(maxdim, idxs-1)
+    maxdim = maxdim == 0 ? 1 : maxdim
+    if cutoff != 0 && sum(S) > 1e-16
+        S2 = S.^2
+        S2cum = reverse(cumsum(reverse(S2))) / sum(S2)
+        idxs = findlast([x > cutoff for x = S2cum])
+        idxs = idxs == nothing ? 1 : idxs
+        maxdim = min(maxdim, idxs)
+    end
+    vals = max(maxdim, mindim)
+
+    # Truncate
+    U = U[:, 1:vals]
+    S = diagm(S[1:vals])
+    V = V[1:vals, :]
+
+    # Ungroup indexs
+    U = moveidx(U, 2, 1)
+    U = uncombineidxs(U, cmb)
+
+    return U, S, V
 end
