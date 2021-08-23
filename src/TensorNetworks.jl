@@ -28,7 +28,17 @@ include("sitetypes.jl")
 include("lattices/spinhalf.jl")
 
 ######################################
-# MPS
+# MPS Structures
 include("structures/abstractmps.jl")
 include("structures/mps.jl")
 include("structures/mpo.jl")
+include("structures/abstractprojmps.jl")
+include("structures/projmps.jl")
+include("structures/oplist.jl")
+include("structures/projmpo.jl")
+include("structures/projmpssum.jl")
+
+######################################
+# MPS algorithms
+include("algorithms/vmps.jl")
+include("algorithms/dmrg.jl")

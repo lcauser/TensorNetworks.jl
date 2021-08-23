@@ -31,7 +31,7 @@ end
 
 Move the gauge from a tensor within the MPO to the right.
 """
-function moveright!(O::MPS, idx; kwargs...)
+function moveright!(O::MPO, idx; kwargs...)
     if 0 < idx && idx < length(psi)
         U, S, V = svd(O[idx], 4; kwargs...)
         V = contract(S, V, 2, 1)
@@ -57,7 +57,7 @@ function productMPO(sites::Int, A::Array{Complex{Float64}, 4})
         push!(tensors, A)
     end
     push!(tensors, A[:, :, :, 1:1])
-    return MPS(size(A)[2], tensors, 0)
+    return MPO(size(A)[2], tensors, 0)
 end
 
 function productMPO(sites::Int, A)
@@ -119,14 +119,14 @@ end
 
 Calculate the inner product of some operator with respect to a bra and ket.
 """
-function inner(psi::MPS, O::MPO, phi::MPO)
+function inner(psi::MPS, O::MPO, phi::MPS)
     # Loop through each site contracting
     prod = ones((1, 1, 1))
     for i = 1:length(psi)
         prod = contract(prod, conj(psi[i]), 1, 1)
         prod = contract(prod, O[i], 1, 1)
         prod = trace(prod, 2, 4)
-        prod = contract(phi[i], 1, 1)
+        prod = contract(prod, phi[i], 1, 1)
         prod = trace(prod, 2, 4)
     end
 
@@ -147,7 +147,7 @@ function inner(O1::MPO, psi::MPS, O2::MPO, phi::MPS)
         prod = trace(prod, 3, 6)
         prod = contract(prod, O2[i], 1, 1)
         prod = trace(prod, 3, 5)
-        prod = contract(phi[i], 1, 1)
+        prod = contract(prod, phi[i], 1, 1)
         prod = trace(prod, 3, 5)
     end
 

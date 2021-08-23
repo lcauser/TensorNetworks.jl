@@ -108,7 +108,9 @@ function replacesites!(psi::MPS, A, site::Int, direction::Bool = false; kwargs..
     # Deal with case of just one site
     if nsites == 1
         psi[site] = A
-        movcenter!(psi, site + 1 - 2*direction)
+        if 0 < (site + 1 - 2*direction) && (site + 1 - 2*direction) < length(psi)
+            movecenter!(psi, site + 1 - 2*direction)
+        end
         return nothing
     end
 
@@ -171,10 +173,13 @@ function randomMPS(dim::Int, length::Int, bonddim::Int)
     for i = 1:length
         D1 = i == 1 ? 1 : bonddim
         D2 = i == length ? 1 : bonddim
-        push!(tensors, randn((D1, dim, D2)) + 1im*randn((D1, dim, D2)))
+        push!(tensors, (randn((D1, dim, D2)) + 1im*randn((D1, dim, D2))))
     end
-
-    return MPS(dim, tensors, 0)
+    psi =  MPS(dim, tensors, 0)
+    movecenter!(psi, 1)
+    psi[1] = (randn((1, dim, 2)) + 1im*randn((1, dim, 2)))
+    normalize!(psi)
+    return psi
 end
 
 

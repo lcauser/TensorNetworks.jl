@@ -26,6 +26,7 @@ import Base:
     push!,
     ones,
     reshape,
+    reverse!,
     setindex!,
     size,
     sum,
@@ -44,6 +45,9 @@ import LinearAlgebra:
     QRIteration,
     svd
 
+import Printf:
+    @printf
+
 import Random: randn
 
 import TensorOperations:
@@ -54,3 +58,12 @@ import TensorOperations:
     tensorproduct,
     scalar,
     @tensor
+
+
+import KrylovKit:
+    eigsolve,
+    linsolve
+
+#import IterativeSolvers:
+#    lsmr!,
+#    lsqr!

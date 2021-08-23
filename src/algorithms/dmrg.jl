@@ -1,0 +1,120 @@
+function dmrg(psi::MPS, Hs::ProjMPSSum; kwargs...)
+    # DMRG options
+    nsites::Int = get(kwargs, :nsites, 2)
+    krylovdim::Int = get(kwargs, :krylovdim, 3)
+    kryloviter::Int = get(kwargs, :kryloviter, 1)
+
+    # Convergence criteria
+    minsweeps::Int = get(kwargs, :minsweeps, 1)
+    maxsweeps::Int = get(kwargs, :maxsweeps, 1000)
+    tol::Float64 = get(kwargs, :tol, 1e-10)
+    numconverges::Float64 = get(kwargs, :numconverges, 4)
+    verbose::Bool = get(kwargs, :verbose, 1)
+
+    # Truncation
+    cutoff::Float64 = get(kwargs, :cutoff, 1e-12)
+    maxdim::Int = get(kwargs, :maxdim, 1000)
+    mindim::Int = get(kwargs, :mindim, 1)
+
+    # Calculate the cost & bond dimension
+    cost = calculate(Hs)
+    lastcost = copy(cost)
+    D = maxbonddim(psi)
+    lastD = copy(D)
+
+    #  Loop through until convergence
+    direction = false
+    converged = false
+    convergedsweeps = 0
+    sweeps = 0
+    while !converged
+        for j = 1:length(psi)+1-nsites
+            # Determine the site
+            site = direction ? length(psi) + 1 - j : j
+            site1 = direction ? site + 1 - nsites : site
+
+            # Build the projector blocks
+            movecenter!(Hs, site)
+
+            # Get the contracted tensors
+            A0 = psi[site1]
+            for i = 1:nsites-1
+                A0 = contract(A0, psi[site1+i], 2+i, 1)
+            end
+
+            # Construct the effective hamilonian and solve
+            Heff(x) = project(Hs, x, direction, nsites)
+            eig, vec = eigsolve(Heff, A0, 1, :SR, maxiter=kryloviter,
+                                krylovdim=krylovdim)
+            cost = eig[1]
+
+            # Replace
+            replacesites!(psi, vec[1], site1, direction; cutoff=cutoff,
+                          maxdim=maxdim, mindim=mindim)
+        end
+        # Reverse direction, build projector blocks to the end
+        movecenter!(Hs, direction ? 1 : length(psi))
+        direction = !direction
+
+        # Check convergence
+        sweeps += 1
+        D = maxbonddim(psi)
+        if sweeps >= minsweeps
+            diff(x, y) = abs(x) < 1e-10 ? abs(x-y) : abs((x - y) / x)
+            if diff(cost, lastcost) < tol && lastD == D
+                convergedsweeps += 1
+            else
+                convergedsweeps == 0
+            end
+            if convergedsweeps >= numconverges
+                converged = true
+            end
+            if sweeps >= maxsweeps && maxsweeps != 0
+                converged = true
+            end
+        end
+        lastcost = copy(cost)
+        lastD = copy(D)
+
+        # Output information
+        if verbose
+            @printf("Sweep=%d, energy=%.12f, maxbonddim=%d \n", sweeps,
+                   real(cost), D)
+        end
+    end
+
+    return psi, cost
+end
+
+function dmrg(psi0::MPS, H::MPO; kwargs...)
+    psi = deepcopy(psi0)
+    movecenter!(psi, 1)
+    return dmrg(psi, ProjMPSSum([ProjMPO(psi, H)]); kwargs...)
+end
+
+function dmrg(psi0::MPS, Hs::Vector{MPO}; kwargs...)
+    psi = deepcopy(psi0)
+    movecenter!(psi, 1)
+    return dmrg(psi, ProjMPSSum([ProjMPO(psi, H) for H = Hs]); kwargs...)
+end
+
+function dmrg(psi0::MPS, H::MPO, V::MPS; kwargs...)
+    psi = deepcopy(psi0)
+    movecenter!(psi, 1)
+    Hs = [ProjMPS(psi, V, squared=true), ProjMPO(psi, H)]
+    return dmrg(psi, ProjMPSSum(Hs); kwargs...)
+end
+
+
+function dmrg(psi0::MPS, Hs::Vector{MPO}, Vs::Vector{MPS}; kwargs...)
+    psi = deepcopy(psi0)
+    movecenter!(psi, 1)
+    Hs = []
+    for H in Hs
+        push!(Hs, ProjMPO(psi, H))
+    end
+    for V in Vs
+        push!(Hs, ProjMPS(psi, V, squared=true))
+    end
+    return dmrg(psi, ProjMPSSum(Hs); kwargs...)
+end

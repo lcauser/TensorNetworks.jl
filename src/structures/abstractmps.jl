@@ -81,7 +81,7 @@ end
 Move the orthogonal center of an MPS.
 """
 function movecenter!(psi::AbstractMPS, idx::Int; kwargs...)
-    (idx < 1 || idx > length(psi)) && println("The idx is out of range.")
+    (idx < 1 || idx > length(psi)) && error("The idx is out of range.")
     if center(psi) == 0
         for i = 1:idx-1
             moveright!(psi, i; kwargs...)
