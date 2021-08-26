@@ -102,6 +102,8 @@ function svd(x, idx::Int; kwargs...)
     try
         t = svd(y, alg=LinearAlgebra.DivideAndConquer())
     catch e
+        println(size(x))
+        println(size(y))
         t = svd(y, alg=LinearAlgebra.QRIteration())
     end
     # Assign SVD to individiual matrices
@@ -116,7 +118,7 @@ function svd(x, idx::Int; kwargs...)
     idxs = findfirst(S == 0)
     maxdim = idxs == nothing ? maxdim : min(maxdim, idxs-1)
     maxdim = maxdim == 0 ? 1 : maxdim
-    if cutoff != 0 && sum(S) > 1e-16
+    if cutoff != 0
         S2 = S.^2
         S2cum = reverse(cumsum(reverse(S2))) / sum(S2)
         idxs = findlast([x > cutoff for x = S2cum])
@@ -135,4 +137,38 @@ function svd(x, idx::Int; kwargs...)
     U = uncombineidxs(U, cmb)
 
     return U, S, V
+end
+
+
+function flatten(x)
+    return reshape(x, (prod(size(x))))
+end
+
+
+"""
+    exp(x, outeridxs::Vector{Int})
+    exp(x, outeridx::Int)
+
+Calculate the exponential of a tensor with the specified tensors being the outer
+index.
+"""
+function exp(x, outeridxs::Vector{Int})
+    # Group indexs together
+    x, cmb1 = combineidxs(x, outeridxs)
+    x, cmb2 = combineidxs(x, [i for i=1:length(size(x))-1])
+    x = moveidx(x, 2, 1)
+
+    # Exponentiate
+    x = exp(x)
+
+    # Reshape to original form
+    x = moveidx(x, 2, 1)
+    x = uncombineidxs(x, cmb2)
+    x = uncombineidxs(x, cmb1)
+
+    return x
+end
+
+function exp(x, outeridx::Int)
+    return exp(x, [outeridx])
 end

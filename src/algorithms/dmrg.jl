@@ -2,7 +2,8 @@ function dmrg(psi::MPS, Hs::ProjMPSSum; kwargs...)
     # DMRG options
     nsites::Int = get(kwargs, :nsites, 2)
     krylovdim::Int = get(kwargs, :krylovdim, 3)
-    kryloviter::Int = get(kwargs, :kryloviter, 1)
+    kryloviter::Int = get(kwargs, :kryloviter, 2)
+    ishermitian::Bool = get(kwargs, :ishermitian, true)
 
     # Convergence criteria
     minsweeps::Int = get(kwargs, :minsweeps, 1)
@@ -45,12 +46,14 @@ function dmrg(psi::MPS, Hs::ProjMPSSum; kwargs...)
             # Construct the effective hamilonian and solve
             Heff(x) = project(Hs, x, direction, nsites)
             eig, vec = eigsolve(Heff, A0, 1, :SR, maxiter=kryloviter,
-                                krylovdim=krylovdim)
+                                krylovdim=krylovdim, ishermitian=ishermitian,
+                                tol=1e-14)
+            #eig, vec = eigs(Heff; nev=1, ncv=3, tol=0.1, v0=flatten(A0), which=:SR)
             cost = eig[1]
-
             # Replace
             replacesites!(psi, vec[1], site1, direction; cutoff=cutoff,
                           maxdim=maxdim, mindim=mindim)
+
         end
         # Reverse direction, build projector blocks to the end
         movecenter!(Hs, direction ? 1 : length(psi))
@@ -85,6 +88,33 @@ function dmrg(psi::MPS, Hs::ProjMPSSum; kwargs...)
 
     return psi, cost
 end
+
+"""
+    dmrg(psi0::MPS, H::MPO; kwargs...)
+    dmrg(psi0::MPS, Hs::Vector{MPO}; kwargs...)
+    dmrg(psi0::MPS, H::MPO, V::MPS; kwargs...)
+    dmrg(psi0::MPS, Hs::Vector{MPO}, Vs::Vector{MPS}; kwargs...)
+
+Perform DMRG calculations with an MPO, or list of MPOs, and project out
+vectors.
+
+Key arguments:
+    - nsites::Int : Number of sites to optimize over. Default is 2.
+    - krylovdim::Int : Number of krylov vectors to create. Default is 3.
+    - kryloviter::Int : Number of krylov iterations. Default is 1.
+    - minsweeps::Int : Minimum number of DMRG sweeps to perform. Default is 1.
+    - maxsweeps::Int : Maximum number of DMRG sweeps to perform. Use 0 for
+        unlimited. Default is 1000.
+    - tol::Float64 : Change in energy (per unit energy) tolerance before
+        converged. Default is 1e-10.
+    - numconverges::Int : Number of sweeps for convergence to be satisfied
+        before finshing.
+    - verbose::Bool : true for information output, false for no output. Default
+        is true.
+    - cutoff::Float64 : Truncation error for SVD. Default is 1e-12.
+    - maxdim::Int : Maximum bond dimension. Default is 1000.
+    - mindim::Int : Minimum bond dimension. Default is 1.
+"""
 
 function dmrg(psi0::MPS, H::MPO; kwargs...)
     psi = deepcopy(psi0)

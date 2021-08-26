@@ -106,7 +106,6 @@ function project(projO::ProjMPO, A, direction::Bool = 0, nsites::Int = 2)
     # Contract with right block
     prod = contract(prod, right, 2, 3)
     prod = trace(prod, length(size(prod))-2, length(size(prod)))
-
     return prod
 end
 

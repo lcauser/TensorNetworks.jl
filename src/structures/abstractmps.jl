@@ -74,6 +74,14 @@ function maxbonddim(psi::AbstractMPS)
 end
 
 
+function Base.show(io::IO, M::AbstractMPS)
+    println(io, "$(typeof(M))")
+    for i = 1:length(M)
+        println(io, "[$(i)] $(size(M[i]))")
+    end
+end
+
+
 ### Move orthogonal center
 """
     movecenter!(psi::MPS, idx::Int; kwargs...)

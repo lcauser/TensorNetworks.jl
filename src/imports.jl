@@ -14,13 +14,18 @@ import Base:
     >,
     !,
     # functions
+    collect,
     copy,
     cumsum,
     diagm,
     eltype,
+    eigen,
+    exp,
     findfirst,
     getindex,
+    kron,
     length,
+    log,
     norm,
     permutedims,
     push!,
@@ -29,7 +34,9 @@ import Base:
     reverse!,
     setindex!,
     size,
+    show,
     sum,
+    sortperm,
     zeros
 
 import HDF5: read, write

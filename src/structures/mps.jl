@@ -5,7 +5,7 @@ Create a MPS with physical dimension dim.
 """
 mutable struct MPS <: AbstractMPS
     dim::Int
-    tensors::Vector{Array{Complex{Float64}, 3}}
+    tensors::Vector{Array{ComplexF64, 3}}
     center::Int
 end
 
@@ -129,7 +129,7 @@ function replacesites!(psi::MPS, A, site::Int, direction::Bool = false; kwargs..
             U, S, V = svd(U, -1; kwargs...)
             U = contract(U, S, length(size(U)), 1)
             D = site1 == length(psi) ? 1 : size(psi[site1+1])[1]
-            V = reshape(V, size(S)[2], dim(psi), D)
+            V = reshape(V, (size(S)[2], dim(psi), D))
 
             # Update tensors
             psi[site1] = V
@@ -173,11 +173,11 @@ function randomMPS(dim::Int, length::Int, bonddim::Int)
     for i = 1:length
         D1 = i == 1 ? 1 : bonddim
         D2 = i == length ? 1 : bonddim
-        push!(tensors, (randn((D1, dim, D2)) + 1im*randn((D1, dim, D2))))
+        push!(tensors, randn(Float64, (D1, dim, D2)))
     end
     psi =  MPS(dim, tensors, 0)
     movecenter!(psi, 1)
-    psi[1] = (randn((1, dim, 2)) + 1im*randn((1, dim, 2)))
+    psi[1] = randn(Float64, (1, dim, min(2, bonddim)))
     normalize!(psi)
     return psi
 end

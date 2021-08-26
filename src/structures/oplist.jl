@@ -12,18 +12,26 @@ Create a list of operators acting on a lattice.
 """
 OpList(length::Int) = OpList(length, [], [], [])
 
+length(oplist::OpList) = oplist.length
+
 ### Add to the list
 """
     add!(oplist::OpList, ops::Vector{String}, sites::Vector{Int},
          coeff::Complex{Float64} = 1)
+    add!(oplist::OpList, op::String, site::Int, coeff::Complex{Float64} = 1)
 
 Add an operator to the list defined by local operators at given sites.
-Todo : order op list wrt site list.
 """
 function add!(oplist::OpList, ops::Vector{String}, sites::Vector{Int},
               coeff::Number = 1.0)
     # Validate the data
     length(ops) != length(sites) && error("The lists must be the same length.")
+
+    # Ordet the operators and sites
+    perms = sortperm(sites)
+    sites = sites[perms]
+    ops = ops[perms]
+
     lastsite = 0
     for site in sites
         (0 > site || site > oplist.length) && error("The sites must be between 1 and $(oplist.length).")
@@ -38,12 +46,6 @@ function add!(oplist::OpList, ops::Vector{String}, sites::Vector{Int},
     push!(oplist.coeffs, coeff)
 end
 
-
-"""
-    add!(oplist::OpList, op::String, site::Int, coeff::Complex{Float64} = 1)
-
-Add an operator to the list defined by a local operator at a site.
-"""
 function add!(oplist::OpList, op::String, site::Int, coeff::Number = 1.0)
     add!(oplist, [op], [site], coeff)
 end
@@ -58,7 +60,7 @@ Determine the interaction range within an operator list.
 function siterange(oplist::OpList)
     rng = 1
     for sites in oplist.sites
-        rng = max(rng, max(sites)-min(sites)+1)
+        rng = max(rng, sites[end]-sites[1]+1)
     end
 
     return rng
@@ -90,20 +92,20 @@ function totensor(oplist::OpList, st::Sitetypes, idx::Int)
     # Fetch the relevent information
     ops = oplist.ops[idx]
     sites = oplist.sites[idx]
-    rng = min(siterange(oplist), oplist.length - min(sites))
+    rng = min(siterange(oplist), oplist.length - sites[1] + 1)
 
     # Create the tensor through a tensor product
     prod = ones((1, 1))
     i = 1
-    for site in range(rng)
+    for site = 1:rng
         if sites[1]+site-1 in sites
-            op = ops[i]
+            oper = ops[i]
             i += 1
         else
-            op = "id"
+            oper = "id"
         end
-        op = reshape(op(st, op), (1, st.dim, st.dim, 1))
-        prod = contract(prod, op, 2, 1)
+        oper = reshape(op(st, oper), (1, st.dim, st.dim, 1))
+        prod = contract(prod, oper, length(size(prod)), 1)
     end
     prod = trace(prod, 1, length(size(prod)))
 
@@ -125,6 +127,7 @@ function sitetensor(oplist::OpList, st::Sitetypes, idx::Int)
     length(idxs) == 0 && return false
 
     # Loop through adding them
+    ten = 1
     for i = 1:length(idxs)
         if i == 1
             ten = totensor(oplist, st, idxs[i])

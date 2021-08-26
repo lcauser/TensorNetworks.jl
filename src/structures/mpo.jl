@@ -5,7 +5,7 @@ Create a MPO with physical dimension dim.
 """
 mutable struct MPO <: AbstractMPS
     dim::Int
-    tensors::Vector{Array{Complex{Float64}, 4}}
+    tensors::Vector{Array{ComplexF64, 4}}
     center::Int
 end
 
