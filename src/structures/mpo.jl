@@ -9,7 +9,13 @@ mutable struct MPO <: AbstractMPS
     center::Int
 end
 
-
+function MPO(dim::Int, length::Int)
+    tensors = []
+    for i = 1:length
+        push!(tensors, zeros(ComplexF64, (1, dim, dim, 1)))
+    end
+    return MPO(dim, tensors, 0)
+end
 ### Deal with gauge moving
 
 """
@@ -92,14 +98,16 @@ Apply an MPO to an MPS. Specify whether to apply the hermitian conjugate.
 Define truncation parameters using key arguments.
 """
 function applyMPO(O::MPO, psi::MPS, hermitian=false; kwargs...)
-    phi = MPS(dim(psi), length(psi), length(psi))
+    phi = MPS(dim(psi), length(psi))
     # Loop through applying the MPO, and move the gauge across
     for i = 1:length(psi)
         A = psi[i]
         M = hermitian ? conj(O[i]) : O[i]
         idx = hermitian ? 2 : 3
-        B = contract(O, A, idx, 2)
-        B = moveidx(B, 4, 3)
+        B = contract(M, A, idx, 2)
+        B, cmb1 = combineidxs(B, [1, 4])
+        B, cmb2 = combineidxs(B, [2, 3])
+        B = moveidx(B, 1, 2)
         phi[i] = B
         if i > 1
             moveright!(phi, i-1)

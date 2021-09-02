@@ -150,3 +150,12 @@ function *(psi::AbstractMPS, a::Number)
 end
 *(a::Number, psi::AbstractMPS) = *(psi, a)
 /(psi::AbstractMPS, a::Number) = *(psi, 1/a)
+
+
+### Entanglement entropy
+function entropy(psi::AbstractMPS, site::Int)
+    movecenter!(psi, site)
+    U, S, V = svd(psi[site], -1)
+    S2 = diag(S).^2
+    return -sum(S2.*log.(S2))
+end

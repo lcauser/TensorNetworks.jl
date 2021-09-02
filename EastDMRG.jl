@@ -1,9 +1,9 @@
 include("src/TensorNetworks.jl")
 
 # Model parameters
-N = 100
-s = 0.01
-c = 0.5
+N = 10
+s = 1.0
+c = 1/3
 
 # Create lattice type
 sh = spinhalf()
@@ -19,6 +19,18 @@ H = productMPO(N, M)
 M1 = copy(M[3:3, :, :, :])
 M1[1, :, :, 1] = A
 H[1] = M1
+
+# Activity operator
+A = exp(-s)*sqrt(c*(1-c))*op(sh, "x")
+M = zeros((3, 2, 2, 3))
+M[1, :, :, 1] = op(sh, "id")
+M[2, :, :, 1] = A
+M[3, :, :, 2] = op(sh, "pu")
+M[3, :, :, 3] = op(sh, "id")
+K = productMPO(N, M)
+M1 = copy(M[3:3, :, :, :])
+M1[1, :, :, 1] = A
+K[1] = M1
 
 # Create initial guess
 psi = productMPS(sh, ["dn" for i = 1:N])

@@ -9,6 +9,13 @@ mutable struct MPS <: AbstractMPS
     center::Int
 end
 
+function MPS(dim::Int, length::Int)
+    tensors = []
+    for i = 1:length
+        push!(tensors, zeros(ComplexF64, (1, dim, 1)))
+    end
+    return MPS(dim, tensors, 0)
+end
 
 ### Deal with gauge moving
 

@@ -85,7 +85,7 @@ function trotterize(ops::OpList, st::Sitetypes, dt::Float64; kwargs...)
     # Choose the time
     evol::String = get(kwargs, :evol, "imag")
     dt = evol == "real" ? -1im*dt : dt
-    
+
     # Calculate the gates
     for i = 1:rng
         time = (i < rng && order == 2) ? dt / 2 : dt

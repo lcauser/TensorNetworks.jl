@@ -26,7 +26,6 @@ include("tensors.jl")
 # Sitetypes
 include("sitetypes.jl")
 include("lattices/spinhalf.jl")
-include("lattices/qkcms.jl")
 
 ######################################
 # MPS Structures
@@ -45,3 +44,7 @@ include("structures/gatelist.jl")
 include("algorithms/vmps.jl")
 include("algorithms/dmrg.jl")
 include("algorithms/tebd.jl")
+include("algorithms/qjmc.jl")
+
+
+include("lattices/qkcms.jl")

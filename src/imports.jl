@@ -17,6 +17,7 @@ import Base:
     collect,
     copy,
     cumsum,
+    deepcopy,
     diagm,
     eltype,
     eigen,

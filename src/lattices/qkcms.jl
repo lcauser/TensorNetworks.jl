@@ -7,8 +7,8 @@ function qKCMS(omega::Real, gamma::Real, kappa::Real=1.0)
         light = [1, 0]
         dark = [0, 1]
     else
-        ss = [[4*omega^2+gamma*(kappa+gamma), -2im*omega*(kappa-gamma)]
-              [2im*omega*(kappa-gamma), 4*omega^2+kappa*(kappa+gamma)]]
+        ss = [4*omega^2+gamma*(kappa+gamma) -2im*omega*(kappa-gamma);
+              2im*omega*(kappa-gamma) 4*omega^2+kappa*(kappa+gamma)]
         ss *= (8*omega^2 + 2*(kappa+gamma)^2)^(-1)
         F = eigen(ss)
         eigs = F.values
@@ -19,8 +19,8 @@ function qKCMS(omega::Real, gamma::Real, kappa::Real=1.0)
 
     add!(sh, "l", light)
     add!(sh, "da", dark)
-    add!(sh, "pl", light' .* conj(light), "pl")
-    add!(sh, "pda", dark' .* conj(dark), "pda")
+    add!(sh, "pl", light .*  light', "pl")
+    add!(sh, "pda", dark .* dark', "pda")
     return sh
 end
 
@@ -30,13 +30,14 @@ function qKCMSDM(omega::Real, gamma::Real, kappa::Real=1.0)
     sh = qKCMS(omega, gamma, kappa)
 
     # Make sitetype
-    st = sitetypes(4)
+    st = sitetype(4)
 
     # Add states
     add!(st, "up", kron(state(sh, "up"), state(sh, "up")))
     add!(st, "dn", kron(state(sh, "dn"), state(sh, "dn")))
     add!(st, "l", kron(state(sh, "l"), state(sh, "l")))
     add!(st, "da", kron(state(sh, "da"), state(sh, "da")))
+    add!(st, "s", [1.0, 0.0, 0.0, 1.0])
 
     # Sigma operators
     add!(st, "xid", kron(op(sh, "x"), op(sh, "id")), "xid")
@@ -68,4 +69,25 @@ function qKCMSDM(omega::Real, gamma::Real, kappa::Real=1.0)
 
     return st
 
+end
+
+"""
+    vectodm(psi::MPS)
+
+Transform a matrix product density state into an MPO. """
+function vectodm(psi::MPS)
+    dim = Int(sqrt(psi.dim))
+    # Create the MPO
+    rho = MPO(dim, length(psi))
+
+    # Loop through each tensor, and split the tensor into the physical dims
+    for i = 1:length(psi)
+        A = psi[i]
+        O = moveidx(A, 2, -1)
+        O = reshape(O, (size(A)[1], size(A)[3], dim, dim))
+        O = moveidx(O, 2, -1)
+        rho[i] = O
+    end
+
+    return rho
 end

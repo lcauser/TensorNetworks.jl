@@ -14,6 +14,14 @@ OpList(length::Int) = OpList(length, [], [], [])
 
 length(oplist::OpList) = oplist.length
 
+function deepcopy(oplist::OpList)
+    oplist2 = OpList(copy(oplist.length))
+    oplist2.sites = copy(oplist.sites)
+    oplist2.ops = copy(oplist.ops)
+    oplist2.coeffs = copy(oplist.coeffs)
+    return oplist2
+end
+
 ### Add to the list
 """
     add!(oplist::OpList, ops::Vector{String}, sites::Vector{Int},
@@ -48,6 +56,32 @@ end
 
 function add!(oplist::OpList, op::String, site::Int, coeff::Number = 1.0)
     add!(oplist, [op], [site], coeff)
+end
+
+
+"""
+    add(oplist1::OpList, oplist2::OpList)
+
+Join two oplists.
+"""
+function add(oplist1::OpList, oplist2::OpList)
+    oplist = OpList(max(oplist1.length, oplist2.length))
+    oplist.sites = copy(oplist1.sites)
+    append!(oplist.sites, oplist2.sites)
+    oplist.ops = copy(oplist1.ops)
+    append!(oplist.ops, oplist2.ops)
+    oplist.coeffs = copy(oplist1.coeffs)
+    append!(oplist.coeffs, oplist2.coeffs)
+    return oplist
+end
+
+
+function *(x::Number, y::OpList)
+    y = deepcopy(y)
+    for i = 1:length(y.coeffs)
+        y.coeffs[i] *= x
+    end
+    return y
 end
 
 
@@ -196,4 +230,22 @@ function inner(st::Sitetypes, psi::MPS, oplist::OpList, phi::MPS)
     end
 
     return expectations
+end
+
+"""
+    applyop!(psi::MPS, st::Sitetypes, ops, sites, coeff::Number=1)
+
+Apply local operators to an MPS.
+"""
+function applyop!(psi::MPS, st::Sitetypes, ops, sites, coeff::Number=1)
+    for i = 1:length(sites)
+        # Fetch the tensors
+        A = psi[sites[i]]
+        O = op(st, ops[i])
+
+        # Apply the operator
+        A = contract(O, A, 2, 2)
+        A = moveidx(A, 1, 2)
+        psi[sites[i]] = A
+    end
 end
