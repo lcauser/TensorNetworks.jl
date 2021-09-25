@@ -1,8 +1,27 @@
-function contract(x, y, idx1, idx2)
+function contract(x, y, idx1::Int, idx2::Int)
     sz = length(size(x))
     dims1 = [i == idx1 ? 0 : i for i = 1:sz]
     dims2 = [j == idx2 ? 0 : sz + j for j = 1:length(size(y))]
     return tensorcontract(x, dims1, y, dims2)
+end
+
+function contract(x, y, idxs1::Vector{Int}, idxs2::Vector{Int})
+    length(idxs1) != length(idxs2) && error("The length of contracting indexs differ.")
+    labels = [-i for i = 1:length(idxs1)]
+    dims1 = [i in idxs1 ? -findall(x -> x == i, idxs1)[1] : i for i = 1:length(size(x))]
+    dims2 = [i in idxs2 ? -findall(x -> x == i, idxs2)[1] : i+length(size(x)) for i = 1:length(size(y))]
+    return tensorcontract(x, dims1, y, dims2)
+end
+
+function tensorproduct(x, y)
+    sz1 = length(size(x))
+    sz2 = length(size(y))
+
+    dims1 = [i for i = 1:sz1]
+    dims2 = [sz1+i for i = 1:sz2]
+    #dims3 = [i for i = 1:sz1+sz2]
+
+    return tensorproduct(x, dims1, y, dims2)
 end
 
 
@@ -137,6 +156,60 @@ function svd(x, idx::Int; kwargs...)
     U = uncombineidxs(U, cmb)
 
     return U, S, V
+end
+
+
+function qr(x, idx::Int)
+    # Make a copy, get the dimensions
+    y = copy(x)
+    sz = length(size(y))
+
+    # See if index is -1
+    idx = idx == -1 ? sz : idx
+
+    # Group all indexs together and push QR axis to the end
+    idxs = []
+    for i = 1:sz
+        i != idx && push!(idxs, i)
+    end
+    y, cmb = combineidxs(y, idxs)
+    y = moveidx(y, 1, -1)
+
+    # Do the QR decomposition
+    t = qr(y)
+    Q = Matrix(t.Q)
+    R = t.R
+
+    # Ungroup the indexs
+    Q = moveidx(Q, 2, 1)
+    Q = uncombineidxs(Q, cmb)
+    return Q, R
+end
+
+
+function lq(x, idx::Int)
+    # Make a copy, get the dimensions
+    y = copy(x)
+    sz = length(size(y))
+
+    # See if index is -1
+    idx = idx == -1 ? sz : idx
+
+    # Group all indexs togethe
+    idxs = []
+    for i = 1:sz
+        i != idx && push!(idxs, i)
+    end
+    y, cmb = combineidxs(y, idxs)
+
+    # Do the LQ decomposition
+    t = lq(y)
+    Q = Matrix(t.Q)
+    L = t.L
+
+    # Ungroup the indexs
+    Q = uncombineidxs(Q, cmb)
+    return L, Q
 end
 
 

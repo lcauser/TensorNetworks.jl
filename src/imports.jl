@@ -47,6 +47,7 @@ import LinearAlgebra:
     dot,
     eigen,
     exp,
+    lq,
     norm,
     normalize!,
     qr,

@@ -47,7 +47,7 @@ function tebd(psi::MPS, H::OpList, st::Sitetypes, dt::Number, tmax::Number,
         applygates!(psi, gates; mindim=mindim, maxdim=gatesdim, cutoff=gateserror)
 
         # Renormalize
-        psinorm = log(norm(psi))
+        psinorm = log(real(norm(psi)))
         normal += psinorm
         normalize!(psi)
 

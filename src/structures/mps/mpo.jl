@@ -47,6 +47,28 @@ function moveright!(O::MPO, idx; kwargs...)
 end
 
 
+"""
+    norm(O::MPO)
+
+Calculate the norm of an MPO.
+"""
+function norm(O::MPO)
+    if center(O) == 0
+        movecenter!(O, 1)
+    end
+    A = O[center(O)]
+    prod = contract(conj(A), A, 1, 1)
+    prod = trace(prod, 3, 6)
+    prod = trace(prod, 1, 3)
+    prod = trace(prod, 1, 2)
+    return prod[1]^0.5
+end
+
+function bonddim(psi::MPO, site::Int)
+    (site < 1 || site >= length(psi)) && return nothing
+    return size(psi[site])[4]
+end
+
 ### Create MPOs
 """
     productMPO(sites::Int, A::Array{Complex{Float64}, 4})
@@ -160,6 +182,21 @@ function inner(O1::MPO, psi::MPS, O2::MPO, phi::MPS)
     end
 
     return prod[1, 1, 1, 1]
+end
+
+
+### Boundary MPOs
+"""
+    bMPO(length::Int)
+
+Creates a boundary MPO.
+"""
+function bMPO(length::Int)
+    M = MPO(1, length)
+    for i = 1:length
+        M[i] = ones(ComplexF64, 1, 1, 1, 1)
+    end
+    return M
 end
 
 ### Save and write

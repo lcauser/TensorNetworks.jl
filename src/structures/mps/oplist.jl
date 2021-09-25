@@ -185,7 +185,7 @@ MPS.
 """
 function inner(st::Sitetypes, psi::MPS, oplist::OpList, phi::MPS)
     # Create a projection on to the MPSs
-    projV = ProjMPS(psi, phi)
+    projV = ProjMPS(phi, psi)
 
     # Loop through each site
     expectations = [0.0 + 0.0im for i = 1:length(oplist.sites)]

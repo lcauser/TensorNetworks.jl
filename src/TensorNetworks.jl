@@ -29,22 +29,35 @@ include("lattices/spinhalf.jl")
 
 ######################################
 # MPS Structures
-include("structures/abstractmps.jl")
-include("structures/mps.jl")
-include("structures/mpo.jl")
-include("structures/abstractprojmps.jl")
-include("structures/projmps.jl")
-include("structures/oplist.jl")
-include("structures/projmpo.jl")
-include("structures/projmpssum.jl")
-include("structures/gatelist.jl")
+include("structures/mps/abstractmps.jl")
+include("structures/mps/mps.jl")
+include("structures/mps/mpo.jl")
+include("structures/mps/abstractprojmps.jl")
+include("structures/mps/projmps.jl")
+include("structures/mps/oplist.jl")
+include("structures/mps/projmpo.jl")
+include("structures/mps/projmpssum.jl")
+include("structures/mps/gatelist.jl")
 
 ######################################
 # MPS algorithms
-include("algorithms/vmps.jl")
-include("algorithms/dmrg.jl")
-include("algorithms/tebd.jl")
-include("algorithms/qjmc.jl")
-
-
+include("algorithms/mps/vmps.jl")
+include("algorithms/mps/dmrg.jl")
+include("algorithms/mps/tebd.jl")
+include("algorithms/mps/qjmc.jl")
 include("lattices/qkcms.jl")
+
+
+######################################
+# PEPS Structures
+include("structures/peps/abstractpeps.jl")
+include("structures/peps/peps.jl")
+include("structures/peps/projbmpo.jl")
+include("algorithms/peps/vbmpo.jl")
+include("structures/peps/oplist2d.jl")
+include("structures/peps/environment.jl")
+
+#####################################
+# PEPS algorithms
+include("algorithms/peps/simpleupdate.jl")
+include("algorithms/peps/fullupdate.jl")

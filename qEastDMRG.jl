@@ -2,9 +2,9 @@ using HDF5
 include("src/TensorNetworks.jl")
 
 # Model parameters
-kappa = 1
+kappa = 1.0
 omega = 0.2
-gamma = 1
+gamma = 0.4
 Ds = [2, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 200, 300, 400, 500]
 numBins = 200
 directHome = "D:/qEast Data/DMRG/"
@@ -33,7 +33,7 @@ end
 #idx = parse(Int, ARGS[1])
 idx = 1
 params = bins[idx]
-params = [[2, 1.0]]
+params = [[5, 1e-3]]
 
 
 # Create lattice type
@@ -112,6 +112,7 @@ if gamma == kappa
     dark = [0, 1]
     plight = 0.5
     pdark = 0.5
+    ss = [1 0; 0 1]
 else
     ss = [4*omega^2+gamma*(kappa+gamma) -2im*omega*(kappa-gamma);
           2im*omega*(kappa-gamma) 4*omega^2+kappa*(kappa+gamma)]
@@ -127,10 +128,9 @@ else
     plight = plight / normalization
     pdark = pdark / normalization
 end
-ss = plight*light.*light' + pdark * dark.*dark'
-ss = reshape(ss, 4)
+ss = conj(reshape(ss, 4))
 
-
+observations = []
 for param in params
     # Load parameters
     N = Ns[Int(param[1])]
@@ -147,7 +147,7 @@ for param in params
     energy = 0
     var = 0
     for D in Ds
-        psi, energy = dmrg(psi, H, ishermitian=false, maxdim=D, maxsweeps=20, tol=1e-10; cutoff=1e-12)
+        psi, energy = dmrg(psi, H, ishermitian=false, maxdim=D, maxsweeps=100, tol=1e-10; cutoff=0)
         var = inner(psi, H, applyMPO(H, psi)) - inner(psi, H, psi)^2
         println("D=", maxbonddim(psi), ", energy=", energy, ", variance=", var)
         D > maxbonddim(psi) && break
@@ -165,7 +165,7 @@ for param in params
         psi = productMPS(N, [1, 0, 0, 1])
     end
     for D in Ds
-        psi, energy = dmrg(psi, H, ishermitian=false, maxdim=D, maxsweeps=20, tol=1e-10; cutoff=1e-12)
+        psi, energy = dmrg(psi, H, ishermitian=false, maxdim=D, maxsweeps=50, tol=1e-10; cutoff=1e-20)
         var = inner(psi, H, applyMPO(H, psi)) - inner(psi, H, psi)^2
         println("D=", maxbonddim(psi), ", energy=", energy, ", variance=", var)
         D > maxbonddim(psi) && break

@@ -2,7 +2,7 @@ include("src/TensorNetworks.jl")
 
 kappa = 1
 omega = 0.2
-gamma = 1
+gamma = 0.4
 directHome = "D:/qEast Data/"
 
 Ns = [6, 10, 20, 40, 60, 80, 100]
@@ -143,10 +143,14 @@ k1 += kappa*(plight*abs(light[1])^2 + pdark*abs(dark[1])^2)
 kstat = (k1 + (N-1)*plight*k1) / N
 
 # Load in rho, find activity and set the transition rates
-rhoDirect = string(directHome, "DMRG/omega=", omega, " gamma=", gamma, "/N = ",
-                   N, "/s = ", s, ".h5")
+rhoDirect = string(directHome, "TEBD/left/gamma = ", gamma, "/omega = ",
+                            saveObs.omega, "/N = ", N, "/")
 f = h5open(rhoDirect, "r")
-leftrho = read(f, "psileft", MPS)
+leftrho = read(f, "psi", MPS)
+close(f)
+rhoDirect = string(directHome, "TEBD/right/gamma = ", gamma, "/omega = ",
+                            saveObs.omega, "/N = ", N, "/")
+f = h5open(rhoDirect, "r")
 rightrho = read(f, "psiright", MPS)
 close(f)
 activity = inner(leftrho, activityop(N, gamma, kappa, s), rightrho)
@@ -161,7 +165,6 @@ qjmc_emission_rates(psi::MPS, jumpops::OpList, st::Sitetypes) = qjmc_emission_ra
 
 # Calculate times
 dt = 0.01/omega
-dt = min(0.01/activity, dt)
 save = 1000*dt
 tmax = 100000 / activity
 

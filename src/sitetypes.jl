@@ -164,3 +164,25 @@ function opprod(st::Sitetypes, names::Vector{String})
     st.temp += 2
     return name
 end
+
+
+### Create a gate from operators
+function creategate(st::Sitetypes, ops::Vector{Vector{String}}, coeffs::Vector{Number})
+    gate = 0
+    for i = 1:length(ops)
+        prod = 0
+        for j = 1:length(ops[i])
+            if j == 1
+                prod = op(st, ops[i][j])
+            else
+                prod = tensorproduct(prod, op(st, ops[i][j]))
+            end
+        end
+        if i == 1
+            gate = coeffs[i]*prod
+        else
+            gate += coeffs[i]*prod
+        end
+    end
+    return gate
+end
