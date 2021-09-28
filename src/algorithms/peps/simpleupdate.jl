@@ -5,11 +5,11 @@ function simpleupdate(psi::PEPS, dt::Real, st::Sitetypes, ops, coeffs; kwargs...
     maxiter = get(kwargs, :maxiter, 0)
     miniter = get(kwargs, :miniter, 1)
     tol = get(kwargs, :tol, 1e-7)
-    saveiter = get(kwargs, :saveiter, 100)
+    saveiter = get(kwargs, :saveiter, 1000)
 
     # Get psi properties
     maxdim = get(kwargs, :maxdim, maxbonddim(psi))
-    chi = get(kwargs, :chi, 1*maxdim^2)
+    chi = get(kwargs, :chi, 4*maxdim^2)
     N = length(psi)
 
     # Create the gate

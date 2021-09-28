@@ -19,7 +19,7 @@ function Environment(psi::PEPS, phi::PEPS; kwargs...)
 
     # Get the truncation criteria
     chi::Int = get(kwargs, :chi, 0)
-    chi = chi == 0 ? 2*maxbonddim(psi)*maxbonddim(phi) : chi
+    chi = chi == 0 ? 4*maxbonddim(psi)*maxbonddim(phi) : chi
     cutoff::Real = get(kwargs, :cutoff, 1e-12)
 
     # Build up the environment
@@ -63,134 +63,82 @@ end
 
 ### Build the environment
 function buildup!(env::Environment, idx::Int)
-    # Retrieve the previous block
-    prev = deepcopy(block(env, idx+1))
-
-    # Loop through each tensor
+    # Fetch the upwards bond dimensions
+    bonddims1 = []
+    bonddims2 = []
     for i = 1:length(env.psi)
-        # Retrieve the tensors
-        M = prev[i]
-        A = env.psi[idx, i]
-        B = env.phi[idx, i]
-
-        # Contract tensors
-        prod = contract(M, conj(A), 2, 3)
-        prod = contract(prod, B, 2, 3)
-        prod = trace(prod, 6, 10)
-
-        # Reshape into bMPO tensor
-        prod, cmb = combineidxs(prod, [1, 3, 6])
-        prod = moveidx(prod, 6, 1)
-        prod, cmb = combineidxs(prod, [2, 4, 6])
-
-        # Update the tensor
-        prev[i] = prod
+        push!(bonddims1, size(env.psi[idx, i])[2])
+        push!(bonddims2, size(env.phi[idx, i])[2])
     end
 
+    # Create a random bMPO
+    bMPO = randombMPO(length(psi), env.chi, bonddims1, bonddims2)
+
     # Apply variational sweeps to limit the bond dimension
-    prev = vbMPO(prev; chi=env.chi, cutoff=env.cutoff)
+    bMPO = vbMPO(bMPO, env, true, idx; chi=env.chi, cutoff=env.cutoff)
 
     # Save the block
-    env.blocks[idx] = prev
+    env.blocks[idx] = bMPO
 end
 
 
 function builddown!(env::Environment, idx::Int)
-    # Retrieve the previous block
-    prev = deepcopy(block(env, idx-1))
-
-    # Loop through each tensor
+    # Fetch the upwards bond dimensions
+    bonddims1 = []
+    bonddims2 = []
     for i = 1:length(env.psi)
-        # Retrieve the tensors
-        M = prev[i]
-        A = env.psi[idx, i]
-        B = env.phi[idx, i]
-
-        # Contract tensors
-        prod = contract(M, conj(A), 2, 2)
-        prod = contract(prod, B, 2, 2)
-        prod = trace(prod, 6, 10)
-
-        # Reshape into bMPO tensor
-        prod, cmb = combineidxs(prod, [1, 3, 6])
-        prod = moveidx(prod, 6, 1)
-        prod, cmb = combineidxs(prod, [2, 4, 6])
-
-        # Update the tensor
-        prev[i] = prod
+        push!(bonddims1, size(env.psi[idx, i])[3])
+        push!(bonddims2, size(env.phi[idx, i])[3])
     end
 
+    # Create a random bMPO
+    bMPO = randombMPO(length(psi), env.chi, bonddims1, bonddims2)
+
     # Apply variational sweeps to limit the bond dimension
-    prev = vbMPO(prev; chi=env.chi, cutoff=env.cutoff)
+    bMPO = vbMPO(bMPO, env, false, idx; chi=env.chi, cutoff=env.cutoff)
 
     # Save the block
-    env.blocks[idx] = prev
+    env.blocks[idx] = bMPO
 end
 
 
 function buildright!(env::Environment, idx::Int)
-    # Retrieve the previous block
-    prev = deepcopy(block(env, idx-1))
-
-    # Loop through each tensor
+    # Fetch the upwards bond dimensions
+    bonddims1 = []
+    bonddims2 = []
     for i = 1:length(env.psi)
-        # Retrieve the tensors
-        M = prev[i]
-        A = env.psi[i, idx]
-        B = env.phi[i, idx]
-
-        # Contract tensors
-        prod = contract(M, conj(A), 2, 1)
-        prod = contract(prod, B, 2, 1)
-        prod = trace(prod, 6, 10)
-
-        # Reshape into bMPO tensor
-        prod, cmb = combineidxs(prod, [1, 3, 6])
-        prod = moveidx(prod, 6, 1)
-        prod, cmb = combineidxs(prod, [2, 3, 5])
-
-        # Update the tensor
-        prev[i] = prod
+        push!(bonddims1, size(env.psi[i, idx])[4])
+        push!(bonddims2, size(env.phi[i, idx])[4])
     end
 
+    # Create a random bMPO
+    bMPO = randombMPO(length(psi), env.chi, bonddims1, bonddims2)
+
     # Apply variational sweeps to limit the bond dimension
-    prev = vbMPO(prev; chi=env.chi, cutoff=env.cutoff)
+    bMPO = vbMPO(bMPO, env, false, idx; chi=env.chi, cutoff=env.cutoff)
 
     # Save the block
-    env.blocks[idx] = prev
+    env.blocks[idx] = bMPO
 end
 
 
 function buildleft!(env::Environment, idx::Int)
-    # Retrieve the previous block
-    prev = deepcopy(block(env, idx+1))
-
-    # Loop through each tensor
+    # Fetch the upwards bond dimensions
+    bonddims1 = []
+    bonddims2 = []
     for i = 1:length(env.psi)
-        # Retrieve the tensors
-        M = prev[i]
-        A = env.psi[i, idx]
-        B = env.phi[i, idx]
-
-        # Contract tensors
-        prod = contract(M, conj(A), 2, 4)
-        prod = contract(prod, B, 2, 4)
-        prod = trace(prod, 6, 10)
-
-        # Reshape into bMPO tensor
-        prod, cmb = combineidxs(prod, [1, 4, 7])
-        prod = moveidx(prod, 6, 1)
-        prod, cmb = combineidxs(prod, [2, 4, 6])
-
-        # Update the tensor
-        prev[i] = prod
+        push!(bonddims1, size(env.psi[i, idx])[1])
+        push!(bonddims2, size(env.phi[i, idx])[1])
     end
 
+    # Create a random bMPO
+    bMPO = randombMPO(length(psi), env.chi, bonddims1, bonddims2)
+
     # Apply variational sweeps to limit the bond dimension
-    prev = vbMPO(prev; chi=env.chi, cutoff=env.cutoff)
+    bMPO = vbMPO(bMPO, env, true, idx; chi=env.chi, cutoff=env.cutoff)
 
     # Save the block
-    env.blocks[idx] = prev
+    env.blocks[idx] = bMPO
 end
 
 

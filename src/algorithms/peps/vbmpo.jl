@@ -1,4 +1,4 @@
-function vbMPO(O::MPO; kwargs...)
+function vbMPO(O::MPO, env::Environment, direction::Bool, level::Int; kwargs...)
     # Truncation criteria
     cutoff = get(kwargs, :cutoff, 1e-12)
     maxchi = get(kwargs, :chi, 0)
@@ -6,38 +6,37 @@ function vbMPO(O::MPO; kwargs...)
     # Convergence criteria
     maxiter = get(kwargs, :maxiter, 100)
     miniter = get(kwargs, :miniter, 4)
-    tol = get(kwargs, :tol, 1e-14)
+    tol = get(kwargs, :tol, 1e-10)
 
     # Make a copy of the bMPO and truncate
-    P = deepcopy(O)
-    P.center = length(P)
-    movecenter!(P, 1; maxdim=maxchi)
+    movecenter!(O, 1; maxdim=maxchi)
 
     # Construct the projectors
-    projOP = ProjbMPO(O, P)
+    proj = ProjbMPO(O, env, direction, level)
+    movecenter!(proj, 1)
 
     # Calculate the cost
-    projOPdiff = calculate(projOP)
-    normal = norm(P)^2
-    cost =  normal - projOPdiff - conj(projOPdiff)
+    projdiff = calculate(proj)
+    normal = norm(O)^2
+    cost =  normal - projdiff - conj(projdiff)
 
     # Loop until convergence
     converged = false
     rev = false
     iterations = 0
-    #println("-----")
+    #println("-------")
     while !converged
         # Loop through each site and optimize
-        for i in length(O)
+        for i = 1:length(O)
             # Determine the site
             site = !rev ? i : length(O) + 1 - i
 
             # Orthogonalize
-            movecenter!(P, site)
-            movecenter!(projOP, site)
+            movecenter!(O, site)
+            movecenter!(proj, site)
 
             # Find optimal update
-            P[site] = project(projOP)
+            O[site] = project(proj)
         end
 
         # Reverse the direction
@@ -45,9 +44,9 @@ function vbMPO(O::MPO; kwargs...)
 
         # Calculate cost
         oldcost = cost
-        projOPdiff = calculate(projOP)
-        normal = norm(P)^2
-        cost = normal - projOPdiff - conj(projOPdiff)
+        projdiff = calculate(proj)
+        normal = norm(O)^2
+        cost = normal - projdiff - conj(projdiff)
 
         # Check convergence
         iterations += 1
@@ -56,7 +55,6 @@ function vbMPO(O::MPO; kwargs...)
         converged = iterations < miniter ? false : converged
         #println((oldcost-cost)/normal)
     end
-    #println(normal)
 
-    return P
+    return O
 end

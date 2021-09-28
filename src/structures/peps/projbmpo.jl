@@ -1,9 +1,10 @@
 mutable struct ProjbMPO <: AbstractProjMPS
-    O::MPO
-    P::MPO
-    blocks::Vector{Array{Complex{Float64}, 2}}
+    psi::MPO
+    env::Environment
+    blocks::Vector{Array{Complex{Float64}, 4}}
     center::Int
-    squared::Bool
+    direction::Bool
+    level::Int
 end
 
 """
@@ -11,21 +12,19 @@ end
 
 Construct a projection of the dot of two boundary MPOs.
 """
-function ProjbMPO(O::MPO, P::MPO; kwargs...)
+function ProjbMPO(psi::MPO, env::Environment, direction::Bool, level::Int; kwargs...)
     # Get key arguments
     squared::Bool = get(kwargs, :squared, false)
     center::Int = get(kwargs, :center, 1)
 
     # Create Projector
-    length(O) != length(P) && error("The bMPOs must have matching lengths.")
-    dim(O) != dim(P) && error("The bMPOs must have matching physical dims.")
-    blocks = [edgeblock(ProjbMPO) for i=1:length(O)]
-    projV = ProjbMPO(O, P, blocks, 0, squared)
+    blocks = [edgeblock(ProjbMPO) for i=1:length(psi)]
+    projV = ProjbMPO(psi, env, blocks, 0, direction, level)
     movecenter!(projV, center)
     return projV
 end
 
-length(projV::ProjbMPO) = length(projV.O)
+length(projV::ProjbMPO) = length(projV.psi)
 
 
 """
@@ -34,7 +33,7 @@ length(projV::ProjbMPO) = length(projV.O)
 Return an edge block.
 """
 function edgeblock(::Type{ProjbMPO})
-    return convert(Array{Complex{Float64}, 2}, ones((1, 1)))
+    return convert(Array{Complex{Float64}, 4}, ones((1, 1, 1, 1)))
 end
 
 """
@@ -45,12 +44,34 @@ Expand the left block using the previous.
 function buildleft!(projV::ProjbMPO, idx::Int)
     # Fetch the block to the left and the tensors
     left = block(projV, idx-1)
-    A1 = conj(projV.O[idx])
-    A2 = projV.P[idx]
+    A1 = conj(projV.psi[idx])
+    A2 = block(projV.env, projV.direction ? projV.level + 1 : projV.level - 1)[idx]
+
+    # Fetch PEPS tensors
+    site1 = !projV.env.direction ? projV.level : idx
+    site2 = projV.env.direction ? projV.level : idx
+    M1 = conj(projV.env.psi[site1, site2])
+    M2 = projV.env.phi[site1, site2]
 
     # Contract the block with the tensors
     prod = contract(left, A1, 1, 1)
-    prod = contract(prod, A2, [1, 2, 3], [1, 2, 3])
+    if projV.env.direction == false && projV.direction == false
+        prod = contract(prod, M1, [1, 4], [1, 3])
+        prod = contract(prod, M2, [1, 3, 7], [1, 3, 5])
+        prod = contract(prod, A2, [1, 3, 5], [1, 2, 3])
+    elseif projV.env.direction == false && projV.direction == true
+        prod = contract(prod, M1, [1, 4], [1, 2])
+        prod = contract(prod, M2, [1, 3, 7], [1, 2, 5])
+        prod = contract(prod, A2, [1, 3, 5], [1, 2, 3])
+    elseif projV.env.direction == true && projV.direction == false
+        prod = contract(prod, M1, [1, 4], [2, 4])
+        prod = contract(prod, M2, [1, 3, 7], [2, 4, 5])
+        prod = contract(prod, A2, [1, 3, 5], [1, 2, 3])
+    else
+        prod = contract(prod, M1, [1, 4], [2, 1])
+        prod = contract(prod, M2, [1, 3, 7], [2, 1, 5])
+        prod = contract(prod, A2, [1, 4, 6], [1, 2, 3])
+    end
 
     # Save the block
     projV[idx] = prod
@@ -63,17 +84,78 @@ end
 Expand the right block using the previous.
 """
 function buildright!(projV::ProjbMPO, idx::Int)
-    # Fetch the block to the right and the tensors
+    # Fetch the block to the left and the tensors
     right = block(projV, idx+1)
-    A1 = conj(projV.O[idx])
-    A2 = projV.P[idx]
+    A1 = conj(projV.psi[idx])
+    A2 = block(projV.env, projV.direction ? projV.level + 1 : projV.level - 1)[idx]
+
+    # Fetch PEPS tensors
+    site1 = !projV.env.direction ? projV.level : idx
+    site2 = projV.env.direction ? projV.level : idx
+    M1 = conj(projV.env.psi[site1, site2])
+    M2 = projV.env.phi[site1, site2]
 
     # Contract the block with the tensors
-    prod = contract(A2, right, 4, 2)
-    prod = contract(A1, prod, [2, 3, 4], [2, 3, 4])
+    prod = contract(A2, right, 4, 4)
+    if projV.env.direction == false && projV.direction == false
+        prod = contract(M2, prod, [2, 4], [3, 6])
+        prod = contract(M1, prod, [2, 4, 5], [5, 7, 3])
+        prod = contract(A1, prod, [2, 3, 4], [2, 4, 6])
+    elseif projV.env.direction == false && projV.direction == true
+        prod = contract(M2, prod, [3, 4], [3, 6])
+        prod = contract(M1, prod, [3, 4, 5], [5, 7, 3])
+        prod = contract(A1, prod, [2, 3, 4], [2, 4, 6])
+    elseif projV.env.direction == true && projV.direction == false
+        prod = contract(M2, prod, [1, 3], [3, 6])
+        prod = contract(M1, prod, [1, 3, 5], [5, 7, 3])
+        prod = contract(A1, prod, [2, 3, 4], [2, 4, 6])
+    else
+        prod = contract(M2, prod, [4, 3], [3, 6])
+        prod = contract(M1, prod, [4, 3, 5], [5, 7, 3])
+        prod = contract(A1, prod, [2, 3, 4], [1, 3, 6])
+    end
 
     # Save the block
     projV[idx] = prod
+end
+
+
+function calculate(projV::ProjbMPO)
+    idx = projV.center
+    # Fetch the block to the left and the tensors
+    left = block(projV, idx-1)
+    right = block(projV, idx+1)
+    A1 = conj(projV.psi[idx])
+    A2 = block(projV.env, projV.direction ? projV.level + 1 : projV.level - 1)[idx]
+
+    # Fetch PEPS tensors
+    site1 = !projV.env.direction ? projV.level : idx
+    site2 = projV.env.direction ? projV.level : idx
+    M1 = conj(projV.env.psi[site1, site2])
+    M2 = projV.env.phi[site1, site2]
+
+    # Contract the block with the tensors
+    prod = contract(left, A1, 1, 1)
+    if projV.env.direction == false && projV.direction == false
+        prod = contract(prod, M1, [1, 4], [1, 3])
+        prod = contract(prod, M2, [1, 3, 7], [1, 3, 5])
+        prod = contract(prod, A2, [1, 3, 5], [1, 2, 3])
+    elseif projV.env.direction == false && projV.direction == true
+        prod = contract(prod, M1, [1, 4], [1, 2])
+        prod = contract(prod, M2, [1, 3, 7], [1, 2, 5])
+        prod = contract(prod, A2, [1, 3, 5], [1, 2, 3])
+    elseif projV.env.direction == true && projV.direction == false
+        prod = contract(prod, M1, [1, 4], [2, 4])
+        prod = contract(prod, M2, [1, 3, 7], [2, 4, 5])
+        prod = contract(prod, A2, [1, 3, 5], [1, 2, 3])
+    else
+        prod = contract(prod, M1, [1, 4], [2, 1])
+        prod = contract(prod, M2, [1, 3, 7], [2, 1, 5])
+        prod = contract(prod, A2, [1, 4, 6], [1, 2, 3])
+    end
+
+    prod = contract(prod, right, [1, 2, 3, 4], [1, 2, 3, 4])
+    return prod[1]
 end
 
 """
@@ -82,36 +164,38 @@ end
 Determine the projection onto the sites at the center in the given direciton.
 """
 function project(projV::ProjbMPO)
-    # Determine the site
-    site = projV.center
+    idx = projV.center
+    # Fetch the block to the left and the tensors
+    left = block(projV, idx-1)
+    right = block(projV, idx+1)
+    A1 = conj(projV.psi[idx])
+    A2 = block(projV.env, projV.direction ? projV.level + 1 : projV.level - 1)[idx]
 
-    # Get the blocks
-    left = block(projV, site - 1)
-    right = block(projV, site + 1)
+    # Fetch PEPS tensors
+    site1 = !projV.env.direction ? projV.level : idx
+    site2 = projV.env.direction ? projV.level : idx
+    M1 = conj(projV.env.psi[site1, site2])
+    M2 = projV.env.phi[site1, site2]
 
-    # Do the contraction
-    O = conj(projV.O[site])
-    prod = contract(left, O, 1, 1)
-    prod = contract(prod, right, 4, 1)
+    # Contract the block with the tensors
+    prod = contract(A2, right, 4, 4)
+    if projV.env.direction == false && projV.direction == false
+        prod = contract(M2, prod, [2, 4], [3, 6])
+        prod = contract(M1, prod, [2, 4, 5], [5, 7, 3])
+        prod = contract(left, prod, [2, 3, 4], [1, 3, 5])
+    elseif projV.env.direction == false && projV.direction == true
+        prod = contract(M2, prod, [3, 4], [3, 6])
+        prod = contract(M1, prod, [3, 4, 5], [5, 7, 3])
+        prod = contract(left, prod, [2, 3, 4], [1, 3, 5])
+    elseif projV.env.direction == true && projV.direction == false
+        prod = contract(M2, prod, [1, 3], [3, 6])
+        prod = contract(M1, prod, [1, 3, 5], [5, 7, 3])
+        prod = contract(left, prod, [2, 3, 4], [1, 3, 5])
+    else
+        prod = contract(M2, prod, [4, 3], [3, 6])
+        prod = contract(M1, prod, [4, 3, 5], [5, 7, 3])
+        prod = contract(left, prod, [2, 3, 4], [2, 4, 5])
+    end
 
     return prod
-end
-
-
-function calculate(projV::ProjbMPO)
-    # Determine the site
-    site = projV.center
-
-    # Get the blocks
-    left = block(projV, site - 1)
-    right = block(projV, site + 1)
-
-    # Do the contraction
-    O = conj(projV.O[site])
-    P = projV.P[site]
-    prod = contract(left, O, 1, 1)
-    prod = contract(prod, P, [1, 2, 3], [1, 2, 3])
-    prod = contract(prod, right, [1, 2], [1, 2])
-
-    return prod[1]
 end

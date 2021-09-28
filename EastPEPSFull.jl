@@ -30,7 +30,7 @@ for i = 1:N
 end
 add!(H, ["id"], [1, 1], true, 1)
 println("---")
-env = Environment(psi, psi)
+#env = Environment(psi, psi)
 
 # Create the gate
 gate = sqrt(c*(1-c))*exp(-s)*tensorproduct(op(sh, "n"), op(sh, "x"))
@@ -47,10 +47,10 @@ coeffs = Vector(Number[sqrt(c*(1-c))*exp(-s), -(1-c), -c])
 println("--------")
 energies = []
 # D = 1
-psi, energy = simpleupdate(psi, 0.1, sh, ops, coeffs; maxiter=10000, maxdim=3)
+psi, energy = simpleupdate(psi, 0.1, sh, ops, coeffs; maxiter=10000, maxdim=1)
 psi0 = deepcopy(psi)
-psi, energy = simpleupdate(psi, 0.01, sh, ops, coeffs; maxiter=10000, maxdim=3)
-psi, energy = simpleupdate(psi, 0.001, sh, ops, coeffs; maxiter=10000, maxdim=3)
+psi, energy = simpleupdate(psi, 0.01, sh, ops, coeffs; maxiter=10000, maxdim=1)
+psi, energy = simpleupdate(psi, 0.001, sh, ops, coeffs; maxiter=10000, maxdim=1)
 push!(energies, energy)
 #psi, energy = fullupdate(psi, gate, 0.01, sh, ops, coeffs; maxdim=1, maxiter=1000, miniter=10, chi=200)
 #psi, energy = fullupdate(psi, gate, 0.001, sh, ops, coeffs; maxdim=1, maxiter=1000, miniter=10, chi=200)

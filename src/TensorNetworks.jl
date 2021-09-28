@@ -52,10 +52,10 @@ include("lattices/qkcms.jl")
 # PEPS Structures
 include("structures/peps/abstractpeps.jl")
 include("structures/peps/peps.jl")
-include("structures/peps/projbmpo.jl")
-include("algorithms/peps/vbmpo.jl")
 include("structures/peps/oplist2d.jl")
 include("structures/peps/environment.jl")
+include("structures/peps/projbmpo.jl")
+include("algorithms/peps/vbmpo.jl")
 
 #####################################
 # PEPS algorithms

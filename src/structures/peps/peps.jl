@@ -106,6 +106,29 @@ function productPEPS(st::Sitetypes, names::Vector{Vector{String}})
     return productPEPS(st,namesArr)
 end
 
+function randomPEPS(dim::Int, length::Int, bonddim::Int)
+    psi = PEPS(dim, length)
+    for i = 1:length
+        for j = 1:length
+            A = randn(ComplexF64, bonddim, bonddim, bonddim, bonddim, dim)
+            if j == 1
+                A = A[1:1, :, :, :, :]
+            end
+            if j == length
+                A = A[:, :, :, 1:1, :]
+            end
+            if i == 1
+                A = A[:, 1:1, :, :, :]
+            end
+            if i == length
+                A = A[:, :, 1:1, :, :]
+            end
+            psi[i, j] = A
+        end
+    end
+    return psi
+end
+
 ### Apply gate
 function applygate!(psi::PEPS, site::Vector{Int}, gate, direction::Bool=false; kwargs...)
     if !direction

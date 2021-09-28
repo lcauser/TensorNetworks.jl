@@ -112,6 +112,26 @@ function productMPO(st::Sitetypes, names::Vector{String})
     return MPO(st.dim, tensors, 0)
 end
 
+
+"""
+    randomMPO(dim::Int, length::Int, bonddim::Int)
+
+Create a MPO with random entries.
+"""
+function randomMPO(dim::Int, length::Int, bonddim::Int)
+    tensors = []
+    for i = 1:length
+        D1 = i == 1 ? 1 : bonddim
+        D2 = i == length ? 1 : bonddim
+        push!(tensors, randn(Float64, (D1, dim, dim, D2)))
+    end
+    psi = MPO(dim, tensors, 0)
+    movecenter!(psi, 1)
+    psi[1] = randn(Float64, (1, dim, dim, min(dim^2, bonddim)))
+    normalize!(psi)
+    return psi
+end
+
 ### Products
 """
     applyMPO(O::MPO, psi::MPS, hermitian=false; kwargs...)
@@ -196,6 +216,23 @@ function bMPO(length::Int)
     for i = 1:length
         M[i] = ones(ComplexF64, 1, 1, 1, 1)
     end
+    return M
+end
+
+"""
+    randombMPO(length::int, bonddims1::Vector{Int}, bonddims2::Vector{Int})
+
+Create a random bMPO with choosen ``physical'' dimensions.
+"""
+function randombMPO(length::Int, chi::Int, bonddims1, bonddims2)
+    M = MPO(1, length)
+    for i = 1:length
+        D1 = i == 1 ? 1 : chi
+        D2 = i == length ? 1 : chi
+        M[i] = randn(ComplexF64, D1, bonddims1[i], bonddims2[i], D2)
+    end
+    movecenter!(M, length)
+    movecenter!(M, 1; maxdim=chi, cutoff=1e-20)
     return M
 end
 
