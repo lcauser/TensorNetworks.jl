@@ -1,24 +1,27 @@
 function fullupdate(psi::PEPS, gate, dt::Real, st::Sitetypes, ops, coeffs; kwargs...)
     # Get convergence arguments
-    maxiter = get(kwargs, :maxiter, 0)
+    maxiter = get(kwargs, :maxiter, 10000)
     miniter = get(kwargs, :miniter, 2)
-    tol = get(kwargs, :tol, 1e-8)
-    saveiter = get(kwargs, :saveiter, 10)
+    tol = get(kwargs, :tol, 1e-7)
+    saveiter = get(kwargs, :saveiter, 100)
 
     # Get psi properties
     maxdim = get(kwargs, :maxdim, maxbonddim(psi))
     N = length(psi)
+    chi = get(kwargs, :chi, maxdim^2)
+    chieval = get(kwargs, :chieval, 100)
 
     # Create the gate
     gate = exp(dt*creategate(st, ops, coeffs), [2, 4])
 
     # Create the environment
-    env = Environment(psi, psi; kwargs...)
+    env = Environment(psi, psi; chi=chi)
 
     # Measure energies
     ops = [[op(st, name) for name in op1] for op1 in ops]
     function calculateenergy(psi)
-        return real(inner(env, ops, coeffs) / inner(env))
+        evalenv = Environment(psi, psi; chi=chieval)
+        return real(inner(evalenv, ops, coeffs) / inner(env))
     end
 
     # Loop through until convergence
@@ -31,6 +34,7 @@ function fullupdate(psi::PEPS, gate, dt::Real, st::Sitetypes, ops, coeffs; kwarg
         # Keep track of change in norm for energy
         energy = 0
         maxcost = 0
+        maxchi = 0
 
         # Update rows
         for i = 1:N
@@ -39,7 +43,8 @@ function fullupdate(psi::PEPS, gate, dt::Real, st::Sitetypes, ops, coeffs; kwarg
                 #println(i, ", ", j)
                 # Optimize
                 build!(env, i, j, false)
-                normal, cost = optimize(env, gate, i, j, false; kwargs...)
+                maxchi = max(maxchi, maxbonddim(env))
+                normal, cost = optimize(env, gate, i, j, false; chi=chi, kwargs...)
                 energy += log(normal)/dt
                 maxcost = max(cost, maxcost)
                 j += 2
@@ -51,12 +56,12 @@ function fullupdate(psi::PEPS, gate, dt::Real, st::Sitetypes, ops, coeffs; kwarg
                 #println(i, ", ", j)
                 # Optimize
                 build!(env, i, j+1, false)
-                normal, cost = optimize(env, gate, i, j, false; kwargs...)
+                maxchi = max(maxchi, maxbonddim(env))
+                normal, cost = optimize(env, gate, i, j, false; chi=chi, kwargs...)
                 energy += log(normal)/dt
                 maxcost = max(cost, maxcost)
                 j -= 2
             end
-            maxchi = max(maxchi, maxbonddim(env))
         end
 
         # Update columns
@@ -66,24 +71,26 @@ function fullupdate(psi::PEPS, gate, dt::Real, st::Sitetypes, ops, coeffs; kwarg
                 #println(j, ", ", i)
                 # Optimize
                 build!(env, j, i, true)
-                normal, cost = optimize(env, gate, j, i, true; kwargs...)
+                maxchi = max(maxchi, maxbonddim(env))
+                normal, cost = optimize(env, gate, j, i, true; chi=chi, kwargs...)
                 energy += log(normal)/dt
                 maxcost = max(cost, maxcost)
                 j += 2
             end
             build!(env, N, i, true)
+            maxchi = max(maxchi, maxbonddim(env))
 
             j = N - 2
             while j > 1
                 #println(j, ", ", i)
                 # Optimize
                 build!(env, j+1, i, true)
-                normal, cost = optimize(env, gate, j, i, true; kwargs...)
+                maxchi = max(maxchi, maxbonddim(env))
+                normal, cost = optimize(env, gate, j, i, true; chi=chi, kwargs...)
                 energy += log(normal)/dt
                 maxcost = max(cost, maxcost)
                 j -= 2
             end
-            maxchi = max(maxchi, maxbonddim(env))
         end
 
         # Rescale tensors
@@ -92,9 +99,11 @@ function fullupdate(psi::PEPS, gate, dt::Real, st::Sitetypes, ops, coeffs; kwarg
         # Check convergence
         energy = real(energy)
         iter += 1
+        #println(iter)
         converge = (iter >= maxiter && maxiter != 0) ? true : converge
         if iter % saveiter == 0
             build!(env, 1, 1, false)
+            maxchi = max(maxchi, maxbonddim(env))
             energy = calculateenergy(psi)
             converge = ((energy-lastenergy) / abs(energy) < tol) ? true : converge
             lastenergy = energy
@@ -110,215 +119,231 @@ function optimize(env::Environment, gate, site11, site12, dir; kwargs...)
     # Find the sites
     site21 = site11 + dir
     site22 = site12 + !dir
+    #println(site11, site12, site21, site22)
 
-    # Retrieve relevent tensors
+    #Retrieve relevent tensors
     A1 = env.psi[site11, site12]
     A2 = env.psi[site21, site22]
 
-    # Find the full-updated tensor
-    A1full, A2full = updatetensor(A1, A2, gate, dir)
+    # Find the reduced tensors
+    A1, R1 = reducedtensor(env.psi, site11, site12, !dir ? 4 : 3)
+    A2, R2 = reducedtensor(env.psi, site21, site22, !dir ? 1 : 2)
 
-    # Find a truncated initial guess
-    maxdim = get(kwargs, :maxdim, size(A1)[!dir ? 4 : 3])
-    if !dir
-        A1 = A1full[:, :, :, 1:min(maxdim, size(A1full)[4]), :]
-        A2 = A2full[1:min(maxdim, size(A2full)[1]), :, :, :, :]
-    else
-        A1 = A1full[:, :, 1:min(maxdim, size(A1full)[3]), :, :]
-        A2 = A2full[:, 1:min(maxdim, size(A2full)[2]), :, :, :]
-    end
+    # Construct the environment for the reduced tensors
+    #renv, Renv, Lenv = ReducedTensorEnv(env, site11, site12, dir, A1, A2)
+    renv = ReducedTensorEnv(env, site11, site12, dir, A1, A2)
+    #R1 = contract(Renv, R1, 2, 1)
+    #R2 = contract(R2, Lenv, 2, 1)
+    #R2 = moveidx(R2, 3, 2)
+
+    # Find the full-updated reduced tensors and initial guess
+    fulltensor = contract(R1, R2, 2, 1)
+    fulltensor = contract(fulltensor, gate, [2, 4], [2, 4])
+    fulltensor = moveidx(fulltensor, 2, 4)
+    prod, cmb1 = combineidxs(fulltensor, [1, 2])
+    prod, cmb1 = combineidxs(prod, [1, 2])
+    R1, S, R2 = svd(prod, 2; maxdim=1)
+    #R1, S, R2 = svd(prod, 2; cutoff=1e-12, maxdim=1)
+    R1 = contract(R1, sqrt.(S), 2, 1)
+    R2 = contract(sqrt.(S), R2, 2, 1)
+    R1 = moveidx(R1, 1, 2)
+    R1 = reshape(R1, (size(S)[1], size(fulltensor)[1], size(fulltensor)[2]))
+    R1 = moveidx(R1, 1, 2)
+    R2 = reshape(R2, (size(S)[2], size(fulltensor)[3], size(fulltensor)[4]))
+    R2 = moveidx(R2, 2, 3)
 
     # Find the norm of the fully updated tensor
-    fullnormal = calculatenorm(env, site11, site12, dir, A1full, A2full)
+    normalFull = contract(renv, conj(fulltensor), [1, 3], [1, 4])
+    normalFull = contract(normalFull, fulltensor, [1, 2, 3, 4], [1, 4, 2, 3])[1]
 
     # Make a cost function and evaluate the initial cost
-    function calculatecost(A1, A2)
-        normal = calculatenorm(env, site11, site12, dir, A1, A2)
-        overlap = calculateoverlap(env, site11, site12, dir, A1full, A2full, A1, A2)
-        return real(fullnormal + normal - overlap - conj(overlap))
-    end
-    cost = calculatecost(A1, A2)
+    calculatecost(R1, R2) = abs(normalFull + norm(renv, R1, R2) - 2*overlap(renv, R1, R2, fulltensor))
+    cost = calculatecost(R1, R2)
 
     # Do an alternating least squares scheme
-    converge = cost < 1e-16
+    converge = cost < 1e-10
+    converge = get(kwargs, :chi, 0) == 1 ? true : converge
     iters = 0
+    D = 1
+    maxdim = get(kwargs, :maxdim, 1)
+    #println("--------")
+    #println(cost)
     while !converge
         for site = [false, true]
-            # Calculate effecitve dot and define effective norm
-            doteff = partialoverlap(env, site11, site12, dir, site, A1full, A2full, A1, A2)
-            function normeff(x)
-                return partialnorm(env, site11, site12, dir, site, site ? A1 : x, site ? x : A2)
+            if site
+                R1, R = qr(R1, 2)
+                R2 = contract(R, R2, 2, 1)
+            else
+                L, R2 = lq(R2, 1)
+                R1 = contract(R1, L, 2, 1)
+                R1 = moveidx(R1, 3, 2)
             end
 
+            # Calculate effecitve dot
+            normeff(x) = site ? effectivenorm(renv, R1, x, site) : effectivenorm(renv, x, R2, site)
+            doteff = effectivedot(renv, site ? R1 : R2, fulltensor, site)
+
             # Optimize the site
-            A, info = linsolve(normeff, doteff, site ? A2 : A1)
-            A2 = site ? A : A2
-            A1 = site ? A1 : A
+            #inverse = inversenorm(renv, R1, R2, site)
+            #R = contract(inverse, doteff, [1, 2], [1, 2])
+            R, info = linsolve(normeff, doteff, site ? R2 : R1)
+            R1 = site ? R1 : R
+            R2 = site ? R : R2
         end
+
         iters += 1
         oldcost = cost
-        cost = calculatecost(A1, A2)
-        converge = cost < 1e-10
-        converge = converge ? true : abs((cost-oldcost) / cost) < 1e-5
-        converge = iters >= 10000 ? true : converge
-        iters == 10000 && println("yes")
+        cost = calculatecost(R1, R2)
+        #println(cost)
+        converge = cost < 1e-8
+        diff = abs((oldcost-cost) / (oldcost + cost))
+        converge = converge ? true : diff < 1e-5
+        converge = iters >= 100 ? true : converge
+        if converge && (D < maxdim) && (cost > 1e-8)
+            D += 1
+            R1, R2 = increasedim(R1, R2, D)
+            iters = 0
+            converge = false
+        end
     end
 
     # Renormalize tensors
-    normal = calculatenorm(env, site11, site12, dir, A1, A2)
-    A1 = A1 / normal^0.25
-    A2 = A2 / normal^0.25
+    normal = norm(renv, R1, R2)
+    R1, R = qr(R1, 2)
+    L, R2 = lq(R2, 1)
+    R = contract(R, L, 2, 1)
+    R = R / normal^0.5
+    U, S, V = svd(R, 2)
+    U = contract(U, sqrt.(S), 2, 1)
+    V = contract(sqrt.(S), V, 2, 1)
+    R1 = contract(R1, U, 2, 1)
+    R1 = moveidx(R1, 3, 2)
+    R2 = contract(V, R2, 2, 1)
+    #R1 = contract(inv(Renv), R1, 2, 1)
+    #R2 = contract(R2, inv(Lenv), 2, 1)
+    #R2 = moveidx(R2, 3, 2)
+    #println(cost)
+
+
+    # Restore tensor
+    if dir
+        A1 = contract(A1, R1, 3, 1)
+        A1 = moveidx(A1, 4, 3)
+        A2 = contract(A2, R2, 2, 2)
+        A2 = moveidx(A2, 4, 2)
+    else
+        A1 = contract(A1, R1, 4, 1)
+        A2 = contract(A2, R2, 1, 2)
+        A2 = moveidx(A2, 4, 1)
+    end
 
     # Update sites
     psi[site11, site12] = A1
     psi[site21, site22] = A2
-    #println("-------")
-    #println(site11, " ", site12, " ", site21, " ", site22)
-    #println(normalFull)
-    #println(normal)
     #println(cost)
     return normal^0.5, cost
 end
 
 
-function updatetensor(A1, A2, gate, dir)
-    # Get the original dimensions
-    dims1 = size(A1)
-    dims2 = size(A2)
-
-    # Contract to make full tensors
-    if !dir
-        fulltensor = contract(A1, A2, 4, 1)
+function effectivenorm(renv, R1, R2, site::Bool)
+    if site == true
+        # Second site
+        prod = contract(renv, conj(R1), 1, 1)
+        prod = contract(prod, R1, [1, 5], [1, 3])
+        prod = contract(prod, R2, [2, 4], [2, 1])
+        prod = moveidx(prod, 1, 2)
     else
-        fulltensor = contract(A1, A2, 3, 2)
+        # First site
+        prod = contract(R2, renv, 2, 4)
+        prod = contract(conj(R2), prod, [2, 3], [5, 2])
+        prod = contract(R1, prod, [1, 2], [4, 2])
+        prod = moveidx(prod, 3, 1)
+        prod = moveidx(prod, 3, 2)
     end
-    fulltensor = contract(fulltensor, gate, [4, 8], [2, 4])
-    fulltensor = moveidx(fulltensor, 7, 4)
-
-    # Apply a SVD to split into two tensors
-    fulltensor, cmb1 = combineidxs(fulltensor, [1, 2, 3, 4])
-    fulltensor, cmb1 = combineidxs(fulltensor, [1, 2, 3, 4])
-    A1full, S, A2full = svd(fulltensor, 2; cutoff=1e-16)
-    A1full = contract(A1full, sqrt.(S), 2, 1)
-    A2full = contract(sqrt.(S), A2full, 2, 1)
-
-    # Reshape into the correct forms
-    A1full = moveidx(A1full, 1, 2)
-    if !dir
-        A1full = reshape(A1full, (size(S)[1], dims1[1], dims1[2], dims1[3], dims1[5]))
-        A1full = moveidx(A1full, 1, 4)
-        A2full = reshape(A2full, (size(S)[1], dims2[2], dims2[3], dims2[4], dims2[5]))
-    else
-        A1full = reshape(A1full, (size(S)[1], dims1[1], dims1[2], dims1[4], dims1[5]))
-        A1full = moveidx(A1full, 1, 3)
-        A2full = reshape(A2full, (size(S)[1], dims2[1], dims2[3], dims2[4], dims2[5]))
-        A2full = moveidx(A2full, 1, 2)
-    end
-
-    return A1full, A2full
-end
-
-
-function expandleft(left, M1, M2, A1, A2, dir)
-    # Contract
-    left = contract(left, M1, 1, 1)
-    if !dir
-        left = contract(left, conj(A1), [1, 4], [1, 2])
-        left = contract(left, A2, [1, 3, 7], [1, 2, 5])
-        left = contract(left, M2, [1, 3, 5], [1, 2, 3])
-    else
-        left = contract(left, conj(A1), [1, 4], [2, 1])
-        left = contract(left, A2, [1, 3, 7], [2, 1, 5])
-        left = contract(left, M2, [1, 4, 6], [1, 2, 3])
-    end
-end
-
-
-function expandright(right, M1, M2, A1, A2, dir)
-    right = contract(M2, right, 4, 4)
-    if !dir
-        right = contract(A2, right, [3, 4], [3, 6])
-        right = contract(conj(A1), right, [3, 4, 5], [5, 7, 3])
-        right = contract(M1, right, [2, 3, 4], [2, 4, 6])
-    else
-        right = contract(A2, right, [3, 4], [6, 3])
-        right = contract(conj(A1), right, [3, 4, 5], [7, 5, 3])
-        right = contract(M1, right, [2, 3, 4], [1, 3, 6])
-    end
-end
-
-
-function calculateoverlap(env, site1, site2, dir, A1full, A2full, A1, A2)
-    # Determine where the centers are
-    center = !dir ? site1 : site2
-    center2 = !dir ? site2 : site1
-
-    # Fetch the relevent blocks
-    left = block(env, center-1)
-    right = block(env, center+1)
-    leftMPS = block2(env, center2-1)
-    rightMPS = block2(env, center2+2)
-    As = [A1, A2]
-    Afulls = [A1full, A2full]
-
-    # Loop through both sites and grow the block
-    prod = leftMPS
-    for i = 1:2
-        A = As[i]
-        Afull = Afulls[i]
-        M1 = left[center2-1+i]
-        M2 = right[center2-1+i]
-
-        # Contract
-        prod = expandleft(prod, M1, M2, Afull, A, dir)
-    end
-
-    # Contract with right blocks
-    prod = contract(prod, rightMPS, [1, 2, 3, 4], [1, 2, 3, 4])[1]
 
     return prod
 end
-calculatenorm(env, site1, site2, dir, A1, A2) = calculateoverlap(env, site1, site2, dir, A1, A2, A1, A2)
 
-function partialoverlap(env, site1, site2, dir, site, A1full, A2full, A1, A2)
-    # Determine where the centers are
-    center = !dir ? site1 : site2
-    center2 = !dir ? site2 : site1
 
-    # Fetch the relevent blocks
-    left = block(env, center-1)
-    right = block(env, center+1)
-    leftMPS = block2(env, center2-1)
-    rightMPS = block2(env, center2+2)
-
-    # Grow the left or right block
-    if site
-        leftMPS = expandleft(leftMPS, left[center2], right[center2], A1full, A1, dir)
+function inversenorm(renv, R1, R2, site::Bool)
+    Dprime1, D1, d = size(R1)
+    D2, Dprime2, d = size(R2)
+    if site == true
+        # Second site
+        prod = contract(renv, conj(R1), 1, 1)
+        prod = contract(prod, R1, [1, 5], [1, 3])
     else
-        rightMPS = expandright(rightMPS, left[center2+1], right[center2+1], A2full, A2, dir)
+        # First site
+        prod = contract(R2, renv, 2, 4)
+        prod = contract(conj(R2), prod, [2, 3], [5, 2])
     end
 
-    # Get the middle blocks
-    Afull = site ? A2full : A1full
-    M1 = site ? left[center2+1] : left[center2]
-    M2 = site ? right[center2+1] : right[center2]
+    # Make into matrix
+    prod, cmb1 = combineidxs(prod, [1, 3])
+    prod, cmb1 = combineidxs(prod, [1, 2])
 
-    # Contract left with middle and right
-    prod = contract(leftMPS, M1, 1, 1)
-    if !dir
-        prod = contract(prod, conj(Afull), [1, 4], [1, 2])
-        prod = contract(prod, M2, [2, 5], [1, 2])
-        prod = contract(prod, rightMPS, [3, 4, 7], [1, 2, 4])
-        prod = moveidx(prod, 3, 5)
+    #prod2 = inv(prod)
+
+    # Find the decomposition
+    F = eigen(prod)
+    vals = real(F.values)
+    vals = [val/maximum(vals) > 1e-8 ? 1/val : 0.0 for val in vals]
+    prod = contract(F.vectors, diagm(vals), 2, 1)
+    prod = contract(prod, conj(transpose(F.vectors)), 2, 1)
+
+    # Reshape into the correct form
+    if site == true
+        prod = reshape(prod, (Dprime2*D2, Dprime2, D2))
+        prod = moveidx(prod, 1, 3)
+        prod = reshape(prod, (Dprime2, D2, Dprime2, D2))
     else
-        prod = contract(prod, conj(Afull), [1, 4], [2, 1])
-        prod = contract(prod, M2, [2, 6], [1, 2])
-        prod = contract(prod, rightMPS, [3, 4, 7], [1, 2, 4])
+        prod = reshape(prod, (D1*Dprime1, D1, Dprime1))
+        prod = moveidx(prod, 1, 3)
+        prod = reshape(prod, (D1, Dprime1, D1, Dprime1))
+    end
+    prod = moveidx(prod, 2, 1)
+    prod = moveidx(prod, 4, 3)
+    return prod
+end
+
+function effectivedot(renv, R, fulltensor, site::Bool)
+    if site == true
+        # Second site
+        prod = contract(renv, conj(R), 1, 1)
+        prod = contract(prod, fulltensor, [1, 3, 5], [1, 4, 2])
         prod = moveidx(prod, 2, 1)
-        prod = moveidx(prod, 3, 5)
-        prod = moveidx(prod, 4, 3)
+    else
+        # First site
+        prod = contract(renv, conj(R), 3, 2)
+        prod = contract(prod, fulltensor, [2, 3, 5], [1, 4, 3])
     end
 
     return prod
 end
-partialnorm(env, site1, site2, dir, site, A1, A2) = partialoverlap(env, site1, site2, dir, site, A1, A2, A1, A2)
+
+function overlap(renv, R1, R2, fulltensor)
+    prod = contract(renv, conj(R1), 1, 1)
+    prod = contract(prod, conj(R2), [2, 4], [2, 1])
+    prod = contract(prod, fulltensor, [1, 2, 3, 4], [1, 4, 2, 3])
+    return prod[1]
+end
+
+function norm(renv, R1, R2)
+    prod = contract(renv, conj(R1), 1, 1)
+    prod = contract(prod, R1, [1, 5], [1, 3])
+    prod = contract(prod, conj(R2), [1, 3], [2, 1])
+    prod = contract(prod, R2, [1, 2, 3], [2, 1, 3])
+    return prod[1]
+end
+
+function increasedim(R1, R2, dim)
+    dims1 = size(R1)
+    dims2 = size(R2)
+
+    F1 = 0.01*randn(ComplexF64, dims1[1], dim, dims1[3])
+    F2 = 0.01*randn(ComplexF64, dim, dims2[2], dims2[3])
+    F1[:, 1:dims1[2], :] = R1
+    F2[1:dims2[1], :, :] = R2
+
+    return F1, F2
+end

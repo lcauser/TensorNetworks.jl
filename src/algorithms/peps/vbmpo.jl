@@ -1,15 +1,15 @@
 function vbMPO(O::MPO, env::Environment, direction::Bool, level::Int; kwargs...)
     # Truncation criteria
-    cutoff = get(kwargs, :cutoff, 1e-12)
+    cutoff = get(kwargs, :cutoff, 0)
     maxchi = get(kwargs, :chi, 0)
 
     # Convergence criteria
-    maxiter = get(kwargs, :maxiter, 100)
-    miniter = get(kwargs, :miniter, 4)
-    tol = get(kwargs, :tol, 1e-10)
+    maxiter = get(kwargs, :maxiter, 1000)
+    miniter = get(kwargs, :miniter, 2)
+    tol = get(kwargs, :tol, 1e-14)
 
     # Make a copy of the bMPO and truncate
-    movecenter!(O, 1; maxdim=maxchi)
+    movecenter!(O, 1)
 
     # Construct the projectors
     proj = ProjbMPO(O, env, direction, level)
@@ -18,13 +18,14 @@ function vbMPO(O::MPO, env::Environment, direction::Bool, level::Int; kwargs...)
     # Calculate the cost
     projdiff = calculate(proj)
     normal = norm(O)^2
-    cost =  normal - projdiff - conj(projdiff)
+    cost = real(normal - projdiff - conj(projdiff))
 
     # Loop until convergence
     converged = false
     rev = false
     iterations = 0
-    #println("-------")
+    chi = maxbonddim(O)
+    #println("------")
     while !converged
         # Loop through each site and optimize
         for i = 1:length(O)
@@ -46,15 +47,16 @@ function vbMPO(O::MPO, env::Environment, direction::Bool, level::Int; kwargs...)
         oldcost = cost
         projdiff = calculate(proj)
         normal = norm(O)^2
-        cost = normal - projdiff - conj(projdiff)
+        cost = real(normal - projdiff - conj(projdiff))
+        diff = real((oldcost-cost) / real(normal))
+        #println(diff)
 
         # Check convergence
         iterations += 1
-        converged = real((oldcost-cost) / normal) <= tol ? true : converged
+        converged = diff < tol ? true : converged
         converged = (maxiter != 0 && iterations >= maxiter) ? true : converged
         converged = iterations < miniter ? false : converged
-        #println((oldcost-cost)/normal)
     end
-
+    #println(iterations)
     return O
 end

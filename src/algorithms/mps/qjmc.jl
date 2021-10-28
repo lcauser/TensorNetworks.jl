@@ -58,8 +58,8 @@ function qjmc_simulation(psi::MPS, Hs::OpList, jumpops::OpList, st::Sitetypes,
     for i = 1:steps
         # Calculate the rates
         rates = qjmc_emission_rates(psi, jumpops, st)
-        normal = 1 - dt*sum(rates)
-        #normal = exp(-dt*sum(rates))
+        #normal = 1 - dt*sum(rates)
+        normal = exp(-dt*sum(rates))
 
         time += dt
 
@@ -134,7 +134,7 @@ function measure!(observer::QJMCOperators, time::Number, psi::MPS, jumps::Vector
     push!(observer.times, time)
     push!(observer.measurements, inner(observer.st, psi, observer.oplist, psi))
 
-    # Add save 
+    # Add save
 end
 
 

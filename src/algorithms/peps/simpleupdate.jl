@@ -4,12 +4,14 @@ function simpleupdate(psi::PEPS, dt::Real, st::Sitetypes, ops, coeffs; kwargs...
     # Get convergence arguments
     maxiter = get(kwargs, :maxiter, 0)
     miniter = get(kwargs, :miniter, 1)
-    tol = get(kwargs, :tol, 1e-7)
+    tol = get(kwargs, :tol, 1e-6)
     saveiter = get(kwargs, :saveiter, 1000)
+    savetime = dt*saveiter
+    tol *= savetime
 
     # Get psi properties
     maxdim = get(kwargs, :maxdim, maxbonddim(psi))
-    chi = get(kwargs, :chi, 4*maxdim^2)
+    chi = maxdim != 1 ? get(kwargs, :chi, 300) : 1
     N = length(psi)
 
     # Create the gate
@@ -19,7 +21,8 @@ function simpleupdate(psi::PEPS, dt::Real, st::Sitetypes, ops, coeffs; kwargs...
     ops = [[op(st, name) for name in op1] for op1 in ops]
     function calculateenergy(psi)
         env = Environment(psi, psi; chi=chi)
-        return real(inner(env, ops, coeffs) / inner(env))
+        normal = inner(env)
+        return real(inner(env, ops, coeffs) / normal)
     end
 
     # Create the list of gate applications
@@ -179,7 +182,7 @@ function simpleupdate(psi::PEPS, dt::Real, st::Sitetypes, ops, coeffs; kwargs...
             R = contract(R, gate, [2, 4], [2, 4])
             R, cmb1 = combineidxs(R, [1, 3])
             R, cmb1 = combineidxs(R, [1, 2])
-            R1, S, R2 = svd(R, -1; maxdim=maxdim, cutoff=1e-16)
+            R1, S, R2 = svd(R, -1; maxdim=maxdim, cutoff=1e-8)
             S = S / maximum(S)
             S = sqrt.(S)
             R1 = contract(R1, S, 2, 1)
@@ -259,7 +262,7 @@ function simpleupdate(psi::PEPS, dt::Real, st::Sitetypes, ops, coeffs; kwargs...
         if iter % saveiter == 0
             energy = calculateenergy(psi)
             converge = ((energy-lastenergy) / abs(energy) < tol) ? true : converge
-            @printf("iter=%d, energy=%.12f \n", iter, energy)
+            @printf("iter=%d, energy=%.12f, maxdim=%d \n", iter, energy, maxbonddim(psi))
             lastenergy = energy
         end
         converge = iter < miniter ? false : converge

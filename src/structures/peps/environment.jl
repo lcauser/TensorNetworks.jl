@@ -20,7 +20,7 @@ function Environment(psi::PEPS, phi::PEPS; kwargs...)
     # Get the truncation criteria
     chi::Int = get(kwargs, :chi, 0)
     chi = chi == 0 ? 4*maxbonddim(psi)*maxbonddim(phi) : chi
-    cutoff::Real = get(kwargs, :cutoff, 1e-12)
+    cutoff::Real = get(kwargs, :cutoff, 1e-16)
 
     # Build up the environment
     direction::Bool = get(kwargs, :direction, false)
@@ -72,7 +72,7 @@ function buildup!(env::Environment, idx::Int)
     end
 
     # Create a random bMPO
-    bMPO = randombMPO(length(psi), env.chi, bonddims1, bonddims2)
+    bMPO = randombMPO(length(env.psi), env.chi, bonddims1, bonddims2)
 
     # Apply variational sweeps to limit the bond dimension
     bMPO = vbMPO(bMPO, env, true, idx; chi=env.chi, cutoff=env.cutoff)
@@ -92,7 +92,7 @@ function builddown!(env::Environment, idx::Int)
     end
 
     # Create a random bMPO
-    bMPO = randombMPO(length(psi), env.chi, bonddims1, bonddims2)
+    bMPO = randombMPO(length(env.psi), env.chi, bonddims1, bonddims2)
 
     # Apply variational sweeps to limit the bond dimension
     bMPO = vbMPO(bMPO, env, false, idx; chi=env.chi, cutoff=env.cutoff)
@@ -112,7 +112,7 @@ function buildright!(env::Environment, idx::Int)
     end
 
     # Create a random bMPO
-    bMPO = randombMPO(length(psi), env.chi, bonddims1, bonddims2)
+    bMPO = randombMPO(length(env.psi), env.chi, bonddims1, bonddims2)
 
     # Apply variational sweeps to limit the bond dimension
     bMPO = vbMPO(bMPO, env, false, idx; chi=env.chi, cutoff=env.cutoff)
@@ -132,7 +132,7 @@ function buildleft!(env::Environment, idx::Int)
     end
 
     # Create a random bMPO
-    bMPO = randombMPO(length(psi), env.chi, bonddims1, bonddims2)
+    bMPO = randombMPO(length(env.psi), env.chi, bonddims1, bonddims2)
 
     # Apply variational sweeps to limit the bond dimension
     bMPO = vbMPO(bMPO, env, true, idx; chi=env.chi, cutoff=env.cutoff)
@@ -153,26 +153,15 @@ function buildmpsright!(env::Environment, idx::Int)
     A2 = !env.direction ? env.phi[env.center, idx] : env.phi[idx, env.center]
 
     # Contract them to grow the block
+    prod = contract(left, M1, 1, 1)
     if env.direction == false
-        prod = contract(left, M1, 1, 1)
-        prod = contract(prod, conj(A1), 1, 1)
-        prod = trace(prod, 3, 6)
-        prod = contract(prod, A2, 1, 1)
-        prod = trace(prod, 2, 7)
-        prod = trace(prod, 5, 8)
-        prod = contract(prod, M2, 1, 1)
-        prod = trace(prod, 2, 6)
-        prod = trace(prod, 3, 5)
+        prod = contract(prod, conj(A1), [1, 4], [1, 2])
+        prod = contract(prod, A2, [1, 3, 7], [1, 2, 5])
+        prod = contract(prod, M2,[1, 3, 5], [1, 2, 3])
     else
-        prod = contract(left, M1, 1, 1)
-        prod = contract(prod, conj(A1), 1, 2)
-        prod = trace(prod, 3, 6)
-        prod = contract(prod, A2, 1, 2)
-        prod = trace(prod, 2, 7)
-        prod = trace(prod, 5, 8)
-        prod = contract(prod, M2, 1, 1)
-        prod = trace(prod, 3, 6)
-        prod = trace(prod, 4, 5)
+        prod = contract(prod, conj(A1), [1, 4], [2, 1])
+        prod = contract(prod, A2, [1, 3, 7], [2, 1, 5])
+        prod = contract(prod, M2, [1, 4, 6], [1, 2, 3])
     end
 
     # Store the block
@@ -191,26 +180,15 @@ function buildmpsleft!(env::Environment, idx::Int)
     A2 = !env.direction ? env.phi[env.center, idx] : env.phi[idx, env.center]
 
     # Contract them to grow the block
+    prod = contract(M2, right, 4, 4)
     if env.direction == false
-        prod = contract(M2, right, 4, 4)
-        prod = contract(A2, prod, 4, 6)
-        prod = trace(prod, 3, 7)
-        prod = contract(conj(A1), prod, 4, 7)
-        prod = trace(prod, 3, 9)
-        prod = trace(prod, 3, 6)
-        prod = contract(M1, prod, 4, 6)
-        prod = trace(prod, 3, 7)
-        prod = trace(prod, 2, 4)
+        prod = contract(A2, prod, [3, 4], [3, 6])
+        prod = contract(conj(A1), prod, [3, 4, 5], [5, 7, 3])
+        prod = contract(M1, prod, [2, 3, 4], [2, 4, 6])
     else
-        prod = contract(M2, right, 4, 4)
-        prod = contract(A2, prod, 3, 6)
-        prod = trace(prod, 3, 7)
-        prod = contract(conj(A1), prod, 3, 7)
-        prod = trace(prod, 3, 9)
-        prod = trace(prod, 3, 6)
-        prod = contract(M1, prod, 4, 6)
-        prod = trace(prod, 3, 6)
-        prod = trace(prod, 2, 3)
+        prod = contract(A2, prod, [3, 4], [6, 3])
+        prod = contract(conj(A1), prod, [3, 4, 5], [7, 5, 3])
+        prod = contract(M1, prod, [2, 3, 4], [1, 3, 6])
     end
 
     # Store the block
@@ -222,9 +200,9 @@ function build!(env::Environment, idx1::Int, idx2::Int, direction::Bool=false)
     # Check for a change in direction for which the environment is built
     if direction != env.direction
         env.direction = direction
-        env.blocks = [bMPO(length(psi)) for i = 1:length(psi)]
+        env.blocks = [bMPO(length(env.psi)) for i = 1:length(env.psi)]
         env.center = 0
-        env.blocks2 = [ones(ComplexF64, 1, 1, 1, 1) for i = 1:length(psi)]
+        env.blocks2 = [ones(ComplexF64, 1, 1, 1, 1) for i = 1:length(env.psi)]
         env.center2 = 0
     end
 
@@ -247,7 +225,7 @@ function build!(env::Environment, idx1::Int, idx2::Int, direction::Bool=false)
         elseif env.center > idx1
             # Build from below
             for i = 1:env.center-idx1
-                buildup!(env.center+1-i)
+                buildup!(env, env.center+1-i)
             end
         else
             rebuild = false
@@ -280,7 +258,7 @@ function build!(env::Environment, idx1::Int, idx2::Int, direction::Bool=false)
 
     # Check too see if blocks should be rebuilt
     if rebuild
-        env.blocks2 = [ones(ComplexF64, 1, 1, 1, 1) for i = 1:length(psi)]
+        env.blocks2 = [ones(ComplexF64, 1, 1, 1, 1) for i = 1:length(env.psi)]
         env.center2 = 0
     end
 
@@ -341,26 +319,15 @@ function inner(env::Environment, ops::Vector{Array{ComplexF64, 2}},
         A = contract(A, ops[i], 5, 1)
 
         # Do the contraction
+        prod = contract(prod, M1, 1, 1)
         if !direction
-            prod = contract(prod, M1, 1, 1)
-            prod = contract(prod, conj(A), 1, 1)
-            prod = trace(prod, 3, 6)
-            prod = contract(prod, B, 1, 1)
-            prod = trace(prod, 2, 7)
-            prod = trace(prod, 5, 8)
-            prod = contract(prod, M2, 1, 1)
-            prod = trace(prod, 2, 6)
-            prod = trace(prod, 3, 5)
+            prod = contract(prod, conj(A), [1, 4], [1, 2])
+            prod = contract(prod, B, [1, 3, 7], [1, 2, 5])
+            prod = contract(prod, M2, [1, 3, 5], [1, 2, 3])
         else
-            prod = contract(prod, M1, 1, 1)
-            prod = contract(prod, conj(A), 1, 2)
-            prod = trace(prod, 3, 6)
-            prod = contract(prod, B, 1, 2)
-            prod = trace(prod, 2, 7)
-            prod = trace(prod, 5, 8)
-            prod = contract(prod, M2, 1, 1)
-            prod = trace(prod, 3, 6)
-            prod = trace(prod, 4, 5)
+            prod = contract(prod, conj(A), [1, 4], [2, 1])
+            prod = contract(prod, B, [1, 3, 7], [2, 1, 5])
+            prod = contract(prod, M2, [1, 4, 6], [1, 2, 3])
         end
     end
 
@@ -448,13 +415,13 @@ function inner(env::Environment, ops::Vector{Vector{Array{ComplexF64, 2}}}, coef
     prod = 0
     for direction = [false, true]
         # Loop through each site
-        for center = 1:length(psi)
-            for center2 = 1:length(psi)
+        for center = 1:length(env.psi)
+            for center2 = 1:length(env.psi)
                 site1 = !direction ? center : center2
                 site2 = !direction ? center2 : center
                 sites = [site1, site2]
                 for i = 1:length(ops)
-                    if center2 + length(ops[i])-1 <= length(psi)
+                    if center2 + length(ops[i])-1 <= length(env.psi)
                         prod += coeffs[i]*inner(env, ops[i], sites, direction)
                     end
                 end
@@ -493,46 +460,63 @@ function ReducedTensorEnv(env::Environment, site1, site2, dir, A1, A2)
     if !dir
         # Grow the left block
         left = contract(left, M1, 1, 1)
-        left = contract(left, conj(A1), 1, 1)
-        left = trace(left, 3, 6)
-        left = contract(left, A1, 1, 1)
-        left = trace(left, 2, 6)
-        left = contract(left, M2, 1, 1)
-        left = trace(left, 2, 6)
-        left = trace(left, 3, 5)
+        left = contract(left, conj(A1), [1, 4], [1, 2])
+        left = contract(left, A1, [1, 3], [1, 2])
+        left = contract(left, M2, [1, 3, 5], [1, 2, 3])
 
         # Grow the right block
         right = contract(M4, right, 4, 4)
-        right = contract(A2, right, 4, 6)
-        right = trace(right, 3, 6)
-        right = contract(conj(A2), right, 4, 6)
-        right = trace(right, 3, 7)
-        right = contract(M3, right, 4, 6)
-        right = trace(right, 3, 7)
-        right = trace(right, 2, 4)
+        right = contract(A2, right, [3, 4], [3, 6])
+        right = contract(conj(A2), right, [3, 4], [4, 6])
+        right = contract(M3, right, [2, 3, 4], [2, 4, 6])
     else
         # Grow the left block
         left = contract(left, M1, 1, 1)
-        left = contract(left, conj(A1), 1, 2)
-        left = trace(left, 3, 6)
-        left = contract(left, A1, 1, 2)
-        left = trace(left, 2, 6)
-        left = contract(left, M2, 1, 1)
-        left = trace(left, 3, 6)
-        left = trace(left, 4, 5)
+        left = contract(left, conj(A1), [1, 4], [2, 1])
+        left = contract(left, A1, [1, 3], [2, 1])
+        left = contract(left, M2, [1, 4, 6], [1, 2, 3])
 
         # Grow the right block
         right = contract(M4, right, 4, 4)
-        right = contract(A2, right, 3, 6)
-        right = trace(right, 3, 6)
-        right = contract(conj(A2), right, 3, 6)
-        right = trace(right, 3, 7)
-        right = contract(M3, right, 4, 6)
-        right = trace(right, 2, 4)
-        right = trace(right, 2, 4)
+        right = contract(A2, right, [3, 4], [6, 3])
+        right = contract(conj(A2), right, [3, 4], [6, 4])
+        right = contract(M3, right, [2, 3, 4], [1, 3, 6])
     end
-    prod = contract(left, right, 1, 1)
-    prod = trace(prod, 3, 6)
+    prod = contract(left, right, [1, 4], [1, 4])
 
-    return prod
+    # Find the closest semi-positive hermitian
+    dims = size(prod)
+    prod2, cmb1 = combineidxs(prod, [1, 3])
+    prod2, cmb1 = combineidxs(prod2, [1, 2])
+    prod2 = 0.5*real(prod2 + conj(transpose(prod2)))
+
+    # Decompose into spectrum
+    F = eigen(prod2)
+    vals = diagm([real(val) < 0 ? 0.0 : val for val in F.values])
+
+    # Find the X matric, and apply LQ/QR decompositon
+    X = contract(F.vectors, sqrt.(vals), 2, 1)
+    X = moveidx(X, 1, 2)
+    X = reshape(X, (size(X)[1], dims[1], dims[3]))
+    #Xprime, R = qr(X, 2)
+    #L, Xprime = lq(X, 3)
+    #X = contract(X, inv(R), 2, 1)
+    #X = moveidx(X, 3, 2)
+    #X = contract(inv(L), X, 2, 3)
+    #X = moveidx(X, 1, 3)
+
+    # Multiply X with hermitian conjugate
+    #prod2 = contract(X, X, 1, 1)
+
+    prod2 = contract(F.vectors, vals, 2, 1)
+    prod2 = contract(prod2, conj(transpose(F.vectors)), 2, 1)
+    dims = size(prod)
+    prod2 = reshape(prod2, (dims[1]*dims[3], dims[2], dims[4]))
+    prod2 = moveidx(prod2, 1, 3)
+    prod2 = reshape(prod2, (dims[2], dims[4], dims[1], dims[3]))
+    prod2 = moveidx(prod2, 3, 1)
+    prod2 = moveidx(prod2, 4, 3)
+    #sum(abs.(prod-prod2)) > 1e-5 && println(sum(abs.(prod-prod2)))
+    #sum(abs.(prod-prod2)) > 1e-5 && println(F.values)
+    return real(prod2)
 end

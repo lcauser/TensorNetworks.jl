@@ -38,7 +38,7 @@ end
 Move the gauge from a tensor within the MPO to the right.
 """
 function moveright!(O::MPO, idx; kwargs...)
-    if 0 < idx && idx < length(psi)
+    if 0 < idx && idx < length(O)
         U, S, V = svd(O[idx], 4; kwargs...)
         V = contract(S, V, 2, 1)
         O[idx] = U
@@ -229,11 +229,57 @@ function randombMPO(length::Int, chi::Int, bonddims1, bonddims2)
     for i = 1:length
         D1 = i == 1 ? 1 : chi
         D2 = i == length ? 1 : chi
-        M[i] = randn(ComplexF64, D1, bonddims1[i], bonddims2[i], D2)
+        M[i] = abs.(randn(Float64, D1, bonddims1[i], bonddims2[i], D2))
     end
     movecenter!(M, length)
-    movecenter!(M, 1; maxdim=chi, cutoff=1e-20)
+    movecenter!(M, 1; maxdim=chi, cutoff=1e-30)
+
+    M[1] = abs.(randn(Float64, 1, bonddims1[1], bonddims2[1], 1*size(M[2])[1]))
     return M
+end
+
+
+function expand!(O::MPO, dim::Int, noise=1e-3)
+    len = Int(iseven(length(O)) ? length(O) / 2 - 1 : (length(O) - 1) / 2)
+    D1 = D2 = D3 = D4 = 1
+    for i = 1:len
+        dims1 = size(O[i])
+        dims2 = size(O[length(O) + 1 - i])
+        D1 = i == 1 ? 1 : D2
+        D2 = min(D1*dims1[2]*dims1[3], dim)
+        D4 = i == 1 ? 1 : D3
+        D3 = min(D4*dims2[2]*dims2[3], dim)
+        M1 = noise*randn(Float64, D1, dims1[2], dims1[3], D2)
+        M1[1:dims1[1], :, :, 1:dims1[4]] = O[i]
+        M2 = noise*randn(Float64, D3, dims2[2], dims2[3], D4)
+        M2[1:dims2[1], :, :, 1:dims2[4]] = O[length(O) + 1 - i]
+        O[i] = M1
+        O[length(O) + 1 - i] = M2
+    end
+
+    if iseven(length(O))
+        dims1 = size(O[len+1])
+        dims2 = size(O[length(O) - len])
+        D1 = D2
+        D4 = D3
+        D2 = D3 = min(D1*dims1[2]*dims1[3], D4*dims2[2]*dims2[3], dim)
+        M1 = noise*randn(Float64, D1, dims1[2], dims1[3], D2)
+        M1[1:dims1[1], :, :, 1:dims1[4]] = O[len+1]
+        M2 = noise*randn(Float64, D3, dims2[2], dims2[3], D4)
+        M2[1:dims2[1], :, :, 1:dims2[4]] = O[length(O) - len]
+        O[len+1] = M1
+        O[length(O) - len] = M2
+    else
+        D1 = D2
+        D4 = D3
+        dims = size(O[len+1])
+        M = noise*randn(Float64, D1, dims[2], dims[3], D4)
+        M1[1:dims1[1], :, :, 1:dims1[4]] = O[len+1]
+        O[len+1] = M1
+    end
+    center = O.center
+    O.center = 0
+    movecenter!(O, center)
 end
 
 ### Save and write

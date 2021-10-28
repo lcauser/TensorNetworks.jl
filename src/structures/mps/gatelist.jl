@@ -92,7 +92,7 @@ function trotterize(ops::OpList, st::Sitetypes, dt::Float64; kwargs...)
         gates = []
         sites::Vector{Int} = []
         site::Int = i
-        while site < length(ops)
+        while site <= length(ops)
             # Calculate the operator
             gate = sitetensor(ops, st, site)
             if gate != false

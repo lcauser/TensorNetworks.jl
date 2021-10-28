@@ -1,8 +1,8 @@
 include("src/TensorNetworks.jl")
 
-kappa = 1
-omega = 0.2
-gamma = 0.4
+kappa = 1.0
+omega = 0.6
+gamma = 1.0
 directHome = "D:/qEast Data/"
 
 Ns = [6, 10, 20, 40, 60, 80, 100]
@@ -26,8 +26,8 @@ idx = 1
 param = params[idx]
 N = Int(param[1])
 s = param[2]
-N = 10
-s = 1.0
+N = 20
+s = -1.0
 
 function activityop(N, gamma, kappa, s)
     # Create the MPO
@@ -144,14 +144,14 @@ kstat = (k1 + (N-1)*plight*k1) / N
 
 # Load in rho, find activity and set the transition rates
 rhoDirect = string(directHome, "TEBD/left/gamma = ", gamma, "/omega = ",
-                            saveObs.omega, "/N = ", N, "/")
+                            omega, "/N = ", N, "/s = ", s, ".h5")
 f = h5open(rhoDirect, "r")
 leftrho = read(f, "psi", MPS)
 close(f)
 rhoDirect = string(directHome, "TEBD/right/gamma = ", gamma, "/omega = ",
-                            saveObs.omega, "/N = ", N, "/")
+                            omega, "/N = ", N, "/s = ", s, ".h5")
 f = h5open(rhoDirect, "r")
-rightrho = read(f, "psiright", MPS)
+rightrho = read(f, "psi", MPS)
 close(f)
 activity = inner(leftrho, activityop(N, gamma, kappa, s), rightrho)
 activity = -real(activity / inner(leftrho, rightrho))
@@ -164,7 +164,7 @@ qjmc_update_rates(psi::MPS, jumpops::OpList, st::Sitetypes) = qjmc_update_rates(
 qjmc_emission_rates(psi::MPS, jumpops::OpList, st::Sitetypes) = qjmc_emission_rates(psi::MPS, rho, s, jumpops::OpList, st::Sitetypes)
 
 # Calculate times
-dt = 0.01/omega
+dt = min(0.01, 0.01/activity)
 save = 1000*dt
 tmax = 100000 / activity
 
@@ -193,7 +193,7 @@ for i = 1:N-1
 end
 
 # Observers
-actDirect = string(directHome, "QJMC/activity/omega=", omega, " gamma=", gamma, "/N = ",
+actDirect = string(directHome, "QJMC/activity/gamma=", gamma, "/omega=", omega, "/N = ",
                    N, "/")
 if !isdir(actDirect)
     mkpath(actDirect)

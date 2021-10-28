@@ -71,6 +71,7 @@ import TensorOperations:
 
 import KrylovKit:
     eigsolve,
+    expand!,
     linsolve
 
 #import IterativeSolvers:
