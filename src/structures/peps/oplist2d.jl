@@ -61,6 +61,40 @@ end
 
 
 """
+    sitetensor(st::Sitetypes, oplist::OpList2d, sites::Vector{Int},
+               direction::Bool=false)
+
+Determine the sum of all tensors starting at a site in a given direction.
+"""
+function sitetensor(st::Sitetypes, oplist::OpList2d, sites::Vector{Int},
+                    direction::Bool=false)
+    # Find all indexs of relevent operators
+    idxs = siteindexs(oplist, sites, direction)
+
+    # Determine the size of the gate
+    sz = 0
+    for idx in idxs
+        sz = max(sz, Int(length(oplist.ops[idx])))
+    end
+    sz == 0 && return false
+
+    # Loop through each site and construct the tensor
+    gate = zeros(ComplexF64, [st.dim for i = 1:2*sz]...)
+    for idx in idxs
+        ops = oplist.ops[idx]
+        prod = 1
+        for i = 1:sz
+            oper = i > length(ops) ? "id" : ops[i]
+            prod = i == 1 ? op(st, oper) : tensorproduct(prod, op(st, oper))
+        end
+        gate += oplist.coeffs[idx]*prod
+    end
+
+    return gate
+end
+
+
+"""
     add!(oplist::OpList2d, ops::Vector{String}, sites::Vector{Int},
          direction::Bool=false, coeff::Complex{Float64} = 1)
 
