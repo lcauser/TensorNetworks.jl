@@ -1,8 +1,8 @@
 using HDF5
 include("src/TensorNetworks.jl")
 
-N = 30
-c = 0.5
+Ns = [6, 10, 14, 18, 22, 26, 30]
+c = 0.3
 ss = -exp10.(range(-3, stop=0, length=61))
 ss2 = exp10.(range(-5, stop=1, length=121))
 append!(ss, ss2)
@@ -14,10 +14,21 @@ maxdim = 6
 cutoff = 0
 home = "D:/East Data/2d/PEPS/"
 
-idx = 97
+# Create a list of parameters
+params = []
+for N in Ns
+    for s in ss
+        push!(params, [N, s])
+    end
+end
 
-s = ss[idx]
-
+# Find the s value
+#idx = parse(Int, ARGS[1])
+idx = 1
+N = Int(params[idx][1])
+s = params[157][2]
+N = 6
+s = 0.1
 
 sh = spinhalf()
 
@@ -66,17 +77,35 @@ end
 
 println("--------")
 # Find initial guess
-directfile = string(home, "c = ", c, "/N = ", N, "/s = ", ss[idx-1], ".h5")
-f = h5open(directfile)
-psi = read(f, "psi", PEPS)
-close(f)
+up = zeros(ComplexF64, 1, 1, 1, 1, 2)
+up[1, 1, 1, 1, 1] = 1
+dn = zeros(ComplexF64, 1, 1, 1, 1, 2)
+dn[1, 1, 1, 1, 2] = 1
+eq = zeros(ComplexF64, 1, 1, 1, 1, 2)
+eq[1, 1, 1, 1, 1] = sqrt(c)
+eq[1, 1, 1, 1, 2] = sqrt(1-c)
+
+psi1 = productPEPS(N, dn)
+psi1[1, 1] = up
+psi1[N, N] = eq
+psi1, energy1 = simpleupdate(psi1, 0.1, sh, ops; maxiter=2000, maxdim=2, saveiter=1000, chi=100)
+
+psi2 = productPEPS(N, eq)
+psi1[1, 1] = up
+psi2, energy2 = simpleupdate(psi2, 0.1, sh, ops; maxiter=2000, maxdim=2, saveiter=1000, chi=100)
+psi = energy1 > energy2 ? psi1 : psi2
 
 
 # Incrase bond dim and converge
 energies = []
 energy = 0
-for dt = [0.01, 0.001]
-    psi, energy = simpleupdate(psi, dt, sh, ops; maxiter=100000, miniter=2000, maxdim=4, chi=200)
+for D = 2:4
+    for dt = [0.01, 0.001]
+        psi, energy = simpleupdate(psi, dt, sh, ops; maxiter=100000, miniter=2000, maxdim=D, chi=100)
+    end
+    println(energy)
+    push!(energies, energy)
+    maxbonddim(psi) < D && break
 end
 
 # Add occupations
