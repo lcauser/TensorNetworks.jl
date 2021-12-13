@@ -1,8 +1,8 @@
 using HDF5
 include("src/TensorNetworks.jl")
 
-N = 30
-c = 0.5
+Ns = [6, 10, 14, 18, 22, 26, 30]
+c = 0.3
 ss = -exp10.(range(-3, stop=0, length=61))
 ss2 = exp10.(range(-5, stop=1, length=121))
 append!(ss, ss2)
@@ -27,50 +27,8 @@ end
 idx = 1
 N = Int(params[idx][1])
 s = params[157][2]
-N = 10
-s = -1.0
-
-sh = spinhalf()
-
-# Create the gate
-gate = sqrt(c*(1-c))*exp(-s)*tensorproduct(op(sh, "n"), op(sh, "x"))
-gate += -(1-c)*tensorproduct(op(sh, "n"), op(sh, "pu"))
-gate += -c*tensorproduct(op(sh, "n"), op(sh, "pd"))
-#gate = exp(dt*gate, [2, 4])
-
-ops = Vector(Vector{String}[])
-push!(ops, Vector(["n", "x"]))
-push!(ops, Vector(["n", "pu"]))
-push!(ops, Vector(["n", "pd"]))
-coeffs = Vector(Number[sqrt(c*(1-c))*exp(-s), -(1-c), -c])
-ops2 = [[op(sh, name) for name in op1] for op1 in ops]
-
-println("--------")
-# Find initial guess
-states = [["dn" for i = 1:N] for j = 1:N]
-states[1][1] = "up"
-states[N][N] = "s"
-psi1 = productPEPS(sh, states)
-psi1, energy1 = simpleupdate(psi1, 0.1, sh, ops, coeffs; maxiter=1000, maxdim=2, saveiter=1000, chi=100)
-
-states = [["s" for i = 1:N] for j = 1:N]
-states[1][1] = "up"
-states[N][N] = "s"
-psi2 = productPEPS(sh, states)
-psi2, energy2 = simpleupdate(psi2, 0.1, sh, ops, coeffs; maxiter=2000, maxdim=2, saveiter=1000, chi=100)
-psi = energy1 > energy2 ? psi1 : psi2
-
-
-# Incrase bond dim and converge
-energies = []
-energy = 0
-for D = 2:4
-    for dt = [0.01, 0.001]
-        @time psi, energy = simpleupdate(psi, dt, sh, ops, coeffs; maxiter=10000, miniter=2000, maxdim=D, chi=2*D^2)
-    end
-    println(energy)
-    push!(energies, energy)
-end
+N = 6
+s = 0.1
 
 sh = spinhalf()
 
@@ -119,17 +77,35 @@ end
 
 println("--------")
 # Find initial guess
-directfile = string(home, "c = ", c, "/N = ", N, "/s = ", ss[idx-1], ".h5")
-f = h5open(directfile)
-psi = read(f, "psi", PEPS)
-close(f)
+up = zeros(ComplexF64, 1, 1, 1, 1, 2)
+up[1, 1, 1, 1, 1] = 1
+dn = zeros(ComplexF64, 1, 1, 1, 1, 2)
+dn[1, 1, 1, 1, 2] = 1
+eq = zeros(ComplexF64, 1, 1, 1, 1, 2)
+eq[1, 1, 1, 1, 1] = sqrt(c)
+eq[1, 1, 1, 1, 2] = sqrt(1-c)
+
+psi1 = productPEPS(N, dn)
+psi1[1, 1] = up
+psi1[N, N] = eq
+psi1, energy1 = simpleupdate(psi1, 0.1, sh, ops; maxiter=2000, maxdim=2, saveiter=1000, chi=100)
+
+psi2 = productPEPS(N, eq)
+psi1[1, 1] = up
+psi2, energy2 = simpleupdate(psi2, 0.1, sh, ops; maxiter=2000, maxdim=2, saveiter=1000, chi=100)
+psi = energy1 > energy2 ? psi1 : psi2
 
 
 # Incrase bond dim and converge
 energies = []
 energy = 0
-for dt = [0.01, 0.001]
-    psi, energy = simpleupdate(psi, dt, sh, ops; maxiter=100000, miniter=2000, maxdim=4, chi=200)
+for D = 2:4
+    for dt = [0.01, 0.001]
+        psi, energy = simpleupdate(psi, dt, sh, ops; maxiter=100000, miniter=2000, maxdim=D, chi=100)
+    end
+    println(energy)
+    push!(energies, energy)
+    maxbonddim(psi) < D && break
 end
 
 # Add occupations

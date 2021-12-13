@@ -350,17 +350,19 @@ function inner(env::Environment, st::Sitetypes, ops::Vector{String},
 end
 
 function inner(st::Sitetypes, psi::PEPS, ops::OpList2d, phi::PEPS; kwargs...)
-    expectations = ComplexF64[0 for i = 1:length(ops.sites)]
-
-
     # Calculate environment
     env = Environment(psi, phi; kwargs...)
 
+    return inner(st, env, ops; kwargs...)
+end
+
+function inner(st::Sitetypes, env::Environment, ops::OpList2d; kwargs...)
+    expectations = ComplexF64[0 for i = 1:length(ops.sites)]
     # Loop through each direction
     for direction = [false, true]
         # Loop through each site
-        for center = 1:length(psi)
-            for center2 = 1:length(psi)
+        for center = 1:length(env.psi)
+            for center2 = 1:length(env.psi)
                 site1 = !direction ? center : center2
                 site2 = !direction ? center2 : center
                 sites = [site1, site2]
