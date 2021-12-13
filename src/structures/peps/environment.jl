@@ -8,6 +8,7 @@ mutable struct Environment
     center::Int
     blocks2::Vector
     center2::Int
+    dropoff::Int
 end
 
 function Environment(psi::PEPS, phi::PEPS; kwargs...)
@@ -26,10 +27,11 @@ function Environment(psi::PEPS, phi::PEPS; kwargs...)
     direction::Bool = get(kwargs, :direction, false)
     center::Int = get(kwargs, :center, 1)
     center2::Int = get(kwargs, :center2, 1)
+    dropoff::Int = get(kwargs, :dropoff, 0)
 
     blocks = [bMPO(length(psi)) for i = 1:length(psi)]
     blocks2 = Any[ones(ComplexF64, 1, 1, 1, 1) for i = 1:length(psi)]
-    env = Environment(psi, phi, chi, cutoff, direction, blocks, 0, blocks2, 0)
+    env = Environment(psi, phi, chi, cutoff, direction, blocks, 0, blocks2, 0, dropoff)
     build!(env, center, center2, direction)
     return env
 end
@@ -483,6 +485,7 @@ function ReducedTensorEnv(env::Environment, site1, site2, dir, A1, A2)
         right = contract(M3, right, [2, 3, 4], [1, 3, 6])
     end
     prod = contract(left, right, [1, 4], [1, 4])
+    #return prod
 
     # Find the closest semi-positive hermitian
     dims = size(prod)

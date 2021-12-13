@@ -5,6 +5,7 @@ mutable struct ProjbMPO <: AbstractProjMPS
     center::Int
     direction::Bool
     level::Int
+    mpo::MPO
 end
 
 """
@@ -19,7 +20,12 @@ function ProjbMPO(psi::MPO, env::Environment, direction::Bool, level::Int; kwarg
 
     # Create Projector
     blocks = [edgeblock(ProjbMPO) for i=1:length(psi)]
-    projV = ProjbMPO(psi, env, blocks, 0, direction, level)
+    mpo = copy(block(env, direction ? level + 1 : level - 1))
+    if env.dropoff != 0
+        movecenter!(mpo, length(mpo))
+        movecenter!(mpo, 1; maxbonddim=env.dropoff)
+    end
+    projV = ProjbMPO(psi, env, blocks, 0, direction, level, mpo)
     movecenter!(projV, center)
     return projV
 end
@@ -45,7 +51,7 @@ function buildleft!(projV::ProjbMPO, idx::Int)
     # Fetch the block to the left and the tensors
     left = block(projV, idx-1)
     A1 = conj(projV.psi[idx])
-    A2 = block(projV.env, projV.direction ? projV.level + 1 : projV.level - 1)[idx]
+    A2 = projV.mpo[idx]
 
     # Fetch PEPS tensors
     site1 = !projV.env.direction ? projV.level : idx
@@ -87,7 +93,7 @@ function buildright!(projV::ProjbMPO, idx::Int)
     # Fetch the block to the left and the tensors
     right = block(projV, idx+1)
     A1 = conj(projV.psi[idx])
-    A2 = block(projV.env, projV.direction ? projV.level + 1 : projV.level - 1)[idx]
+    A2 = projV.mpo[idx]
 
     # Fetch PEPS tensors
     site1 = !projV.env.direction ? projV.level : idx
@@ -126,7 +132,7 @@ function calculate(projV::ProjbMPO)
     left = block(projV, idx-1)
     right = block(projV, idx+1)
     A1 = conj(projV.psi[idx])
-    A2 = block(projV.env, projV.direction ? projV.level + 1 : projV.level - 1)[idx]
+    A2 = projV.mpo[idx]
 
     # Fetch PEPS tensors
     site1 = !projV.env.direction ? projV.level : idx
@@ -169,7 +175,7 @@ function project(projV::ProjbMPO)
     left = block(projV, idx-1)
     right = block(projV, idx+1)
     A1 = conj(projV.psi[idx])
-    A2 = block(projV.env, projV.direction ? projV.level + 1 : projV.level - 1)[idx]
+    A2 = projV.mpo[idx]
 
     # Fetch PEPS tensors
     site1 = !projV.env.direction ? projV.level : idx

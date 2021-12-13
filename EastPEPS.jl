@@ -27,8 +27,8 @@ end
 idx = 1
 N = Int(params[idx][1])
 s = params[157][2]
-N = 6
-#s = 10.0
+N = 10
+s = -1.0
 
 sh = spinhalf()
 
@@ -51,7 +51,7 @@ states = [["dn" for i = 1:N] for j = 1:N]
 states[1][1] = "up"
 states[N][N] = "s"
 psi1 = productPEPS(sh, states)
-psi1, energy1 = simpleupdate(psi1, 0.1, sh, ops, coeffs; maxiter=2000, maxdim=2, saveiter=1000, chi=100)
+psi1, energy1 = simpleupdate(psi1, 0.1, sh, ops, coeffs; maxiter=1000, maxdim=2, saveiter=1000, chi=100)
 
 states = [["s" for i = 1:N] for j = 1:N]
 states[1][1] = "up"
@@ -66,7 +66,7 @@ energies = []
 energy = 0
 for D = 2:4
     for dt = [0.01, 0.001]
-        psi, energy = simpleupdate(psi, dt, sh, ops, coeffs; maxiter=100000, miniter=2000, maxdim=D, chi=100)
+        @time psi, energy = simpleupdate(psi, dt, sh, ops, coeffs; maxiter=10000, miniter=2000, maxdim=D, chi=2*D^2)
     end
     println(energy)
     push!(energies, energy)

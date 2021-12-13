@@ -1,18 +1,18 @@
-function vbMPO(O::MPO, env::Environment, direction::Bool, level::Int; kwargs...)
+function vbMPO(O::MPS, env::SingleEnvironment, level::Int; kwargs...)
     # Truncation criteria
     cutoff = get(kwargs, :cutoff, 0)
     maxchi = get(kwargs, :chi, 0)
 
     # Convergence criteria
-    maxiter = get(kwargs, :maxiter, 4)
+    maxiter = get(kwargs, :maxiter, 1000)
     miniter = get(kwargs, :miniter, 2)
-    tol = get(kwargs, :tol, 1e-6)
+    tol = get(kwargs, :tol, 1e-14)
 
-    # Make a copy of the bMPO and truncate
+    # Make a copy of the bMPS and truncate
     movecenter!(O, 1)
 
     # Construct the projectors
-    proj = ProjbMPO(O, env, direction, level)
+    proj = ProjbMPS(O, env, direction, level)
     movecenter!(proj, 1)
 
     # Calculate the cost
@@ -49,6 +49,7 @@ function vbMPO(O::MPO, env::Environment, direction::Bool, level::Int; kwargs...)
         normal = norm(O)^2
         cost = real(normal - projdiff - conj(projdiff))
         diff = real((oldcost-cost) / real(normal))
+        #println(diff)
 
         # Check convergence
         iterations += 1
@@ -56,5 +57,6 @@ function vbMPO(O::MPO, env::Environment, direction::Bool, level::Int; kwargs...)
         converged = (maxiter != 0 && iterations >= maxiter) ? true : converged
         converged = iterations < miniter ? false : converged
     end
+    #println(iterations)
     return O
 end

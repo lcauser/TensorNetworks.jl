@@ -1,15 +1,14 @@
 include("src/TensorNetworks.jl")
 
-N = 10
+N = 6
 c = 0.5
-s = 0.01
+s = -1.0
 dt = 0.01
-maxdim = 4
-maxchi = 50
+maxdim = 3
 cutoff = 0
 
 sh = spinhalf()
-states = [["dn" for i = 1:N] for j = 1:N]
+states = [["s" for i = 1:N] for j = 1:N]
 states[1][1] = "up"
 states[N][N] = "s"
 psi = productPEPS(sh, states)
@@ -46,37 +45,12 @@ push!(ops, Vector(["n", "pd"]))
 coeffs = Vector(Number[sqrt(c*(1-c))*exp(-s), -(1-c), -c])
 
 println("--------")
-#psi, energy = simpleupdate(psi, 0.1, sh, ops, coeffs; maxiter=100000, miniter=200, maxdim=1, saveiter=100)
-#psi, energy = simpleupdate(psi, 0.1, sh, ops, coeffs; maxiter=100000, miniter=200, maxdim=maxdim, saveiter=100)
-psi, energy = fullupdate(psi, gate, 0.1, sh, ops, coeffs; maxdim=maxdim, chi=D, miniter=200)
-energies = []
-converge = false
-D = 0
-lastenergy = 0
-energy = 0
-count1 = 0
-dt = 1.0
-while !converge
-    dt = dt / 10
-    converge2 = false
-    count2 = 0
-    lastenergy2 = 0
-    while !converge2
-        D += maxdim^2
-        psi, energy = fullupdate(psi, gate, dt, sh, ops, coeffs; maxdim=maxdim, chi=D, miniter=200)
-        count2 += 1
-        if count2 > 1
-            converge2 = (energy - lastenergy2) / abs(energy) < 1e-4 ? true : false
-        end
-        lastenergy2 = energy
-        converge2 = D >= maxchi ? true : converge
-    end
-    count1 += 1
-    if count1 > 1
-        converge = (energy - lastenergy) / abs(energy) < 1e-4 ? true : false
-    end
-    lastenergy = energy
-    push!(energies, energy)
+@time begin
+psi, energy = fullupdate(psi, gate, 0.1, sh, ops, coeffs; maxdim=1, maxiter=10000, miniter=10, chi=1, saveiter=500)
+psi, energy = fullupdate(psi, gate, 0.01, sh, ops, coeffs; maxdim=2, maxiter=10000, miniter=10, chi=4*4, dropoff=4, saveiter=200)
+psi, energy = fullupdate(psi, gate, 0.01, sh, ops, coeffs; maxdim=3, maxiter=10000, miniter=10, chi=4*9, dropoff=4, saveiter=200)
+#psi, energy = fullupdate(psi, gate, 0.01, sh, ops, coeffs; maxdim=4, maxiter=10000, miniter=10, chi=16, dropoff=1, saveiter=200)
+psi, energy = fullupdate(psi, gate, 0.001, sh, ops, coeffs; maxdim=3, maxiter=10000, miniter=10, chi=4*9, dropoff=4, saveiter=100)
 end
 
 ns = OpList2d(N)
@@ -87,5 +61,5 @@ for i = 1:N
 end
 add!(ns, ["id"], [1, 1], false, 1)
 ns = inner(sh, psi, ns, psi; maxchi=200)
-#ns = [ns[i] / ns[end] for i = 1:length(ns)-1]
-#ns = reshape(ns, (N, N))
+ns = [ns[i] / ns[end] for i = 1:length(ns)-1]
+ns = reshape(ns, (N, N))

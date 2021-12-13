@@ -232,6 +232,40 @@ function productMPS(st::Sitetypes, names::Vector{String})
 end
 
 
+### Boundary MPSs used in PEPS calculations
+"""
+    bMPS(length::Int)
+
+Creates a boundary MPS.
+"""
+function bMPS(length::Int)
+    M = MPS(1, length)
+    for i = 1:length
+        M[i] = ones(ComplexF64, 1, 1, 1)
+    end
+    return M
+end
+
+"""
+    randombMPS(length::int, bonddims::Vector{Int})
+
+Create a random bMPS with choosen ``physical'' dimensions.
+"""
+function randombMPS(length::Int, chi::Int, bonddims)
+    M = MPS(1, length)
+    for i = 1:length
+        D1 = i == 1 ? 1 : chi
+        D2 = i == length ? 1 : chi
+        M[i] = abs.(randn(Float64, D1, bonddims[i], D2))
+    end
+    movecenter!(M, length)
+    movecenter!(M, 1; maxdim=chi, cutoff=1e-30)
+
+    M[1] = abs.(randn(Float64, 1, bonddims[1], 1*size(M[2])[1]))
+    return M
+end
+
+
 ### Save and write
 function HDF5.write(parent::Union{HDF5.File, HDF5.Group}, name::AbstractString,
                     M::MPS)

@@ -1,21 +1,22 @@
 function fullupdate(psi::PEPS, gate, dt::Real, st::Sitetypes, ops, coeffs; kwargs...)
     # Get convergence arguments
     maxiter = get(kwargs, :maxiter, 10000)
-    miniter = get(kwargs, :miniter, 2)
-    tol = get(kwargs, :tol, 1e-7)
-    saveiter = get(kwargs, :saveiter, 100)
+    miniter = get(kwargs, :miniter, 1000)
+    tol = get(kwargs, :tol, 1e-6)
+    saveiter = get(kwargs, :saveiter, 500)
 
     # Get psi properties
     maxdim = get(kwargs, :maxdim, maxbonddim(psi))
     N = length(psi)
     chi = get(kwargs, :chi, maxdim^2)
     chieval = get(kwargs, :chieval, 100)
+    dropoff::Int = get(kwargs, :dropoff, 0)
 
     # Create the gate
     gate = exp(dt*creategate(st, ops, coeffs), [2, 4])
 
     # Create the environment
-    env = Environment(psi, psi; chi=chi)
+    env = Environment(psi, psi; chi=chi, dropoff=dropoff)
 
     # Measure energies
     ops = [[op(st, name) for name in op1] for op1 in ops]
@@ -105,7 +106,9 @@ function fullupdate(psi::PEPS, gate, dt::Real, st::Sitetypes, ops, coeffs; kwarg
             build!(env, 1, 1, false)
             maxchi = max(maxchi, maxbonddim(env))
             energy = calculateenergy(psi)
-            converge = ((energy-lastenergy) / abs(energy) < tol) ? true : converge
+            diff = energy-lastenergy
+            diff = abs(energy) < 1e-10 ? diff : diff / abs(energy)
+            converge = (diff < tol) ? true : converge
             lastenergy = energy
         @printf("iter=%d, energy=%.12f, maxdim=%d, maxchi=%d, cost=%.12f \n", iter, energy, maxbonddim(psi), maxchi, maxcost)
         end
@@ -116,10 +119,14 @@ end
 
 
 function optimize(env::Environment, gate, site11, site12, dir; kwargs...)
+    # Key arguments
+    maxiter::Int = get(kwargs, :update_iterations, 3)
+    tol::Float64 = get(kwargs, :update_tol, 1e-8)
+    maxdim = get(kwargs, :maxdim, 1)
+
     # Find the sites
     site21 = site11 + dir
     site22 = site12 + !dir
-    #println(site11, site12, site21, site22)
 
     #Retrieve relevent tensors
     A1 = env.psi[site11, site12]
@@ -130,11 +137,7 @@ function optimize(env::Environment, gate, site11, site12, dir; kwargs...)
     A2, R2 = reducedtensor(env.psi, site21, site22, !dir ? 1 : 2)
 
     # Construct the environment for the reduced tensors
-    #renv, Renv, Lenv = ReducedTensorEnv(env, site11, site12, dir, A1, A2)
     renv = ReducedTensorEnv(env, site11, site12, dir, A1, A2)
-    #R1 = contract(Renv, R1, 2, 1)
-    #R2 = contract(R2, Lenv, 2, 1)
-    #R2 = moveidx(R2, 3, 2)
 
     # Find the full-updated reduced tensors and initial guess
     fulltensor = contract(R1, R2, 2, 1)
@@ -142,8 +145,7 @@ function optimize(env::Environment, gate, site11, site12, dir; kwargs...)
     fulltensor = moveidx(fulltensor, 2, 4)
     prod, cmb1 = combineidxs(fulltensor, [1, 2])
     prod, cmb1 = combineidxs(prod, [1, 2])
-    R1, S, R2 = svd(prod, 2; maxdim=1)
-    #R1, S, R2 = svd(prod, 2; cutoff=1e-12, maxdim=1)
+    R1, S, R2 = svd(prod, 2; cutoff=1e-6, maxdim=maxdim)
     R1 = contract(R1, sqrt.(S), 2, 1)
     R2 = contract(sqrt.(S), R2, 2, 1)
     R1 = moveidx(R1, 1, 2)
@@ -161,13 +163,9 @@ function optimize(env::Environment, gate, site11, site12, dir; kwargs...)
     cost = calculatecost(R1, R2)
 
     # Do an alternating least squares scheme
-    converge = cost < 1e-10
-    converge = get(kwargs, :chi, 0) == 1 ? true : converge
+    converge = cost < tol
     iters = 0
-    D = 1
-    maxdim = get(kwargs, :maxdim, 1)
-    #println("--------")
-    #println(cost)
+    D = size(R1)[2]
     while !converge
         for site = [false, true]
             if site
@@ -194,19 +192,18 @@ function optimize(env::Environment, gate, site11, site12, dir; kwargs...)
         iters += 1
         oldcost = cost
         cost = calculatecost(R1, R2)
-        #println(cost)
-        converge = cost < 1e-8
+        converge = cost < tol
         diff = abs((oldcost-cost) / (oldcost + cost))
-        converge = converge ? true : diff < 1e-5
-        converge = iters >= 100 ? true : converge
-        if converge && (D < maxdim) && (cost > 1e-8)
+        #converge = converge ? true : diff < 1e-5
+        converge = iters >= maxiter ? true : converge
+        #iters >= maxiter && println("et oh")
+        if converge && (D < maxdim) && (cost > tol)
             D += 1
             R1, R2 = increasedim(R1, R2, D)
             iters = 0
             converge = false
         end
     end
-
     # Renormalize tensors
     normal = norm(renv, R1, R2)
     R1, R = qr(R1, 2)
@@ -219,11 +216,6 @@ function optimize(env::Environment, gate, site11, site12, dir; kwargs...)
     R1 = contract(R1, U, 2, 1)
     R1 = moveidx(R1, 3, 2)
     R2 = contract(V, R2, 2, 1)
-    #R1 = contract(inv(Renv), R1, 2, 1)
-    #R2 = contract(R2, inv(Lenv), 2, 1)
-    #R2 = moveidx(R2, 3, 2)
-    #println(cost)
-
 
     # Restore tensor
     if dir
@@ -287,7 +279,7 @@ function inversenorm(renv, R1, R2, site::Bool)
     # Find the decomposition
     F = eigen(prod)
     vals = real(F.values)
-    vals = [val/maximum(vals) > 1e-8 ? 1/val : 0.0 for val in vals]
+    vals = [val/maximum(vals) > 0.0 ? 1/val : 0.0 for val in vals]
     prod = contract(F.vectors, diagm(vals), 2, 1)
     prod = contract(prod, conj(transpose(F.vectors)), 2, 1)
 
