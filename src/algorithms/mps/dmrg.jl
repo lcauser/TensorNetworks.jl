@@ -9,6 +9,7 @@ function dmrg(psi::MPS, Hs::ProjMPSSum; kwargs...)
     minsweeps::Int = get(kwargs, :minsweeps, 1)
     maxsweeps::Int = get(kwargs, :maxsweeps, 1000)
     tol::Float64 = get(kwargs, :tol, 1e-10)
+    tolgrad::Float64 = get(kwargs, :tolgrad, 1e-5)
     numconverges::Float64 = get(kwargs, :numconverges, 4)
     verbose::Bool = get(kwargs, :verbose, 1)
 
@@ -22,11 +23,13 @@ function dmrg(psi::MPS, Hs::ProjMPSSum; kwargs...)
     lastcost = copy(cost)
     D = maxbonddim(psi)
     lastD = copy(D)
+    grad::Float64 = 0.0
 
     #  Loop through until convergence
     direction = false
     converged = false
     convergedsweeps = 0
+    convergedgrad = 0
     sweeps = 0
     while !converged
         for j = 1:length(psi)+1-nsites
@@ -62,20 +65,26 @@ function dmrg(psi::MPS, Hs::ProjMPSSum; kwargs...)
         # Check convergence
         sweeps += 1
         D = maxbonddim(psi)
+        diff(x, y) = abs(x) < 1e-10 ? abs(x-y) : abs((x - y) / x)
         if sweeps >= minsweeps
-            diff(x, y) = abs(x) < 1e-10 ? abs(x-y) : abs((x - y) / x)
             if diff(cost, lastcost) < tol && lastD == D
                 convergedsweeps += 1
             else
-                convergedsweeps == 0
+                convergedsweeps = 0
             end
-            if convergedsweeps >= numconverges
+            if abs((diff(cost, lastcost) - grad) / (diff(cost, lastcost) + grad)) < tolgrad && lastD == D
+                convergedgrad += 1
+            else
+                convergedgrad = 0
+            end
+            if max(convergedsweeps, convergedgrad) >= numconverges
                 converged = true
             end
             if sweeps >= maxsweeps && maxsweeps != 0
                 converged = true
             end
         end
+        grad = abs(diff(cost, lastcost))
         lastcost = copy(cost)
         lastD = copy(D)
 
@@ -117,34 +126,30 @@ Key arguments:
 """
 
 function dmrg(psi0::MPS, H::MPO; kwargs...)
-    psi = deepcopy(psi0)
-    movecenter!(psi, 1)
-    return dmrg(psi, ProjMPSSum([ProjMPO(psi, H)]); kwargs...)
+    movecenter!(psi0, 1)
+    return dmrg(psi0, ProjMPSSum([ProjMPO(psi0, H)]); kwargs...)
 end
 
 function dmrg(psi0::MPS, Hs::Vector{MPO}; kwargs...)
-    psi = deepcopy(psi0)
-    movecenter!(psi, 1)
-    return dmrg(psi, ProjMPSSum([ProjMPO(psi, H) for H = Hs]); kwargs...)
+    movecenter!(psi0, 1)
+    return dmrg(psi0, ProjMPSSum([ProjMPO(psi0, H) for H = Hs]); kwargs...)
 end
 
 function dmrg(psi0::MPS, H::MPO, V::MPS; kwargs...)
-    psi = deepcopy(psi0)
-    movecenter!(psi, 1)
-    Hs = [ProjMPS(psi, V, squared=true), ProjMPO(psi, H)]
-    return dmrg(psi, ProjMPSSum(Hs); kwargs...)
+    movecenter!(psi0, 1)
+    Hs = [ProjMPS(psi0, V, -0.01; squared=true), ProjMPO(psi0, H)]
+    return dmrg(psi0, ProjMPSSum(Hs); kwargs...)
 end
 
 
 function dmrg(psi0::MPS, Hs::Vector{MPO}, Vs::Vector{MPS}; kwargs...)
-    psi = deepcopy(psi0)
-    movecenter!(psi, 1)
+    movecenter!(psi0, 1)
     Hs = []
     for H in Hs
-        push!(Hs, ProjMPO(psi, H))
+        push!(Hs, ProjMPO(psi0, H))
     end
     for V in Vs
-        push!(Hs, ProjMPS(psi, V, squared=true))
+        push!(Hs, ProjMPS(psi0, V, -1.0; squared=true))
     end
-    return dmrg(psi, ProjMPSSum(Hs); kwargs...)
+    return dmrg(psi0, ProjMPSSum(Hs); kwargs...)
 end

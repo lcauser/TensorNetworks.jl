@@ -26,8 +26,8 @@ idx = 1
 param = params[idx]
 N = Int(param[1])
 s = param[2]
-N = 20
-s = -1.0
+N = 6
+s = 1.0
 
 function activityop(N, gamma, kappa, s)
     # Create the MPO
@@ -85,18 +85,14 @@ function qjmc_emission_rates(psi::MPS, rho::MPO, s::Number, jumpops::OpList, st:
 
                 # Contract rho
                 prod = contract(prod, conj(A), 1, 1)
-                prod = contract(prod, O, 3, 2)
-                prod = contract(prod, P, 1, 1)
-                prod = trace(prod, 3, 4)
+                prod = contract(prod, conj(O), 3, 2)
+                prod = contract(prod, P, [1, 4], [1, 2])
                 prod = contract(prod, O, 3, 1)
-                prod = contract(prod, A, 1, 1)
-                prod = trace(prod, 3, 4)
+                prod = contract(prod, A, [1, 4], [1, 2])
             end
 
             # Contract with right block
-            prod = contract(prod, right, 1, 1)
-            prod = trace(prod, 2, 4)
-            prod = trace(prod, 1, 2)
+            prod = contract(prod, right, [1, 2, 3], [1, 2, 3])
 
             # Set the expectation
             rates[idx] = coeff*prod[1]
@@ -143,38 +139,31 @@ k1 += kappa*(plight*abs(light[1])^2 + pdark*abs(dark[1])^2)
 kstat = (k1 + (N-1)*plight*k1) / N
 
 # Load in rho, find activity and set the transition rates
-rhoDirect = string(directHome, "TEBD/left/gamma = ", gamma, "/omega = ",
+rhoDirect = string(directHome, "DMRG/gamma = ", gamma, "/omega = ",
                             omega, "/N = ", N, "/s = ", s, ".h5")
 f = h5open(rhoDirect, "r")
-leftrho = read(f, "psi", MPS)
+leftrho = conj(read(f, "psi_left", MPS))
+rightrho = read(f, "psi_right", MPS)
+activity = real(read(f, "activity"))
 close(f)
-rhoDirect = string(directHome, "TEBD/right/gamma = ", gamma, "/omega = ",
-                            omega, "/N = ", N, "/s = ", s, ".h5")
-f = h5open(rhoDirect, "r")
-rightrho = read(f, "psi", MPS)
-close(f)
-activity = inner(leftrho, activityop(N, gamma, kappa, s), rightrho)
-activity = -real(activity / inner(leftrho, rightrho))
-flat = productMPS(sh2, ["s" for i = 1:N])
-leftrho *= 1/(inner(leftrho, flat))
-movecenter!(leftrho, N)
-movecenter!(leftrho, 1)
 rho = vectodm(leftrho)
-qjmc_update_rates(psi::MPS, jumpops::OpList, st::Sitetypes) = qjmc_update_rates(psi::MPS, rho, s, jumpops::OpList, st::Sitetypes)
+#qjmc_update_rates(psi::MPS, jumpops::OpList, st::Sitetypes) = qjmc_update_rates(psi::MPS, rho, s, jumpops::OpList, st::Sitetypes)
 qjmc_emission_rates(psi::MPS, jumpops::OpList, st::Sitetypes) = qjmc_emission_rates(psi::MPS, rho, s, jumpops::OpList, st::Sitetypes)
-
-# Calculate times
-dt = min(0.01, 0.01/activity)
-save = 1000*dt
-tmax = 100000 / activity
 
 # Create initial state
 if activity / N < real(kstat / 2)
-    psi = productMPS(sh, ["da" for i = 1:N])
+    states = ["da" for i = 1:N]
+    states[end] = "s"
+    psi = productMPS(sh, states)
+    dt = min(0.01, 0.01/activity)
 else
     states = [rand() < plight ? "l" : "da" for i = 1:N]
     psi = productMPS(sh, states)
+    dt = min(0.01, 0.01/(activity/N))
 end
+
+save = 50*dt
+tmax = 100000 / activity
 
 # Create the Hamiltonian
 H = OpList(N)
@@ -189,7 +178,9 @@ add!(jumpops, "s-", 1, sqrt(kappa))
 add!(jumpops, "s+", 1, sqrt(gamma))
 for i = 1:N-1
     add!(jumpops, ["pl", "s-"], [i, i+1], sqrt(kappa))
-    add!(jumpops, ["pl", "s+"], [i, i+1], sqrt(gamma))
+    if gamma != 0.0
+        add!(jumpops, ["pl", "s+"], [i, i+1], sqrt(gamma))
+    end
 end
 
 # Observers
@@ -200,6 +191,20 @@ if !isdir(actDirect)
 end
 actDirect = string(actDirect, "s = ", s, ".h5")
 actobs = QJMCActivity(true, actDirect)
+# Observers
+obslist = OpList(N)
+for i = 1:N
+    add!(obslist, ["pl"], [i], sqrt(kappa))
+end
+observer = QJMCOperators(obslist, sh)
 
 # QJMC
-jumps, times = qjmc_simulation(psi, H, jumpops, sh, tmax, dt, [actobs]; save=save, update=true)
+jumps, times = qjmc_simulation(psi, H, jumpops, sh, tmax, dt, [actobs, observer]; save=save, cutoff=1e-16, mindim=1)
+
+
+ops = OpList(N)
+for i = 1:N
+    add!(ops, ["pl"], [i])
+end
+
+ns = inner(sh, psi, ops, psi)

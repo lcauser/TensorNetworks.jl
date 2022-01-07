@@ -1,9 +1,10 @@
 include("src/TensorNetworks.jl")
 
 # Model parameters
-N = 6
-gamma = 1.0
+N = 10
+gamma = 0.0
 kappa = 1.0
+omegas = [0.0, 0.2, 0.4]
 tmax = 10000.0
 direct = "D:/qEast Data/"
 
@@ -15,10 +16,18 @@ unique!(ss)
 sort!(ss)
 ss = round.(ss, digits=10)
 
+params = []
+for omega = omegas
+    for s = ss
+        push!(params, [omega, s])
+    end
+end
+
 #idx = parse(Int, ARGS[1])
-idx = 1
-s = ss[idx]
-s = 0.9
+#omega = params[idx][1]
+#s = params[idx][2]
+omega = 0.4
+s = -0.1
 
 # Time step
 if s < -1.0
@@ -84,102 +93,66 @@ function lindblad_list(N, omega, gamma, kappa, s)
     return oplist
 end
 
-mutable struct SaveMPS <: TEBDObserver
-    omega::Float64
-    psi::MPS
-    completed::Bool
-    direct::String
-end
 
-function measure!(observer::SaveMPS, time::Number, psi::MPS, norm::Number)
-    observer.psi = psi
-    f = h5open(observer.direct, "w")
-    write(f, "psi", psi)
-    write(f, "completed", observer.completed)
-    write(f, "omega", observer.omega)
-    close(f)
-end
-
-function checkdone!(observer::TEBDNorm)
-    length(observer.times) < 3 && return false
-    E1 = observer.measurements[end] - observer.measurements[end-1]
-    E1 /= observer.times[end] - observer.times[end-1]
-    E2 = observer.measurements[end-1] - observer.measurements[end-2]
-    E2 /= observer.times[end-1] - observer.times[end-2]
-    if abs(E2+E1) > 1e-12
-        diff = abs(E2 - E1) / abs(E2 + E1)
-    else
-        diff = abs(E2 - E1)
+# Create initial guess
+sh = qKCMSDM(omega, gamma, kappa)
+psi1 = productMPS(N, ss)
+psi2 = productMPS(sh, ["da" for i = 1:N])
+oplist = lindblad_list(N, omega, gamma, kappa, s)
+if s > 0
+    for dt in [0.01]
+        psi1, energy1 = tebd(psi1, oplist, sh, dt, 100.0, save, [TEBDNorm(1e-5)]; maxdim=4)
+        global psi1 = psi1
+        global energy1 = energy1
+        psi2, energy2 = tebd(psi2, oplist, sh, dt, 100.0, save, [TEBDNorm(1e-5)]; maxdim=4)
+        global psi2 = psi2
+        global energy2 = energy2
     end
-    diff < observer.tol && return true
-    return false
-end
-
-
-# See if the simulation has already begun
-tempDirect = string(direct, "TEBD Temp/right/gamma = ", gamma, "/N = ", N, "/")
-if !isdir(tempDirect)
-    mkpath(tempDirect)
-end
-tempDirect = string(tempDirect, "s = ", s, ".h5")
-if isfile(tempDirect)
-    # Load in
-    f = h5open(tempDirect, "r")
-    omega = read(f, "omega")
-    completed = read(f, "completed")
-    psi = read(f, "psi", MPS)
-    close(f)
-    saveObs = SaveMPS(omega, psi, completed, tempDirect)
+    psi = energy1 > energy2 ? psi1 : psi2
+    energy = energy1 > energy2 ? energy1 : energy2
 else
-    # Create initial guess
-    omega = 0
-    sh = qKCMSDM(omega, gamma, kappa)
-    if s <= 1e-4
-        psi = productMPS(N, ss)
-    else
-        psi = productMPS(sh, ["da" for i = 1:N])
-    end
-    movecenter!(psi, 1)
-    saveObs = SaveMPS(omega, psi, false, tempDirect)
-    for dt in [0.1]
-        oplist = lindblad_list(N, omega, gamma, kappa, s)
-        psi, energy = tebd(psi, oplist, sh, dt, 10000.0, save, [TEBDNorm(1e-5), saveObs]; cutoff=1e-10)
-        global psi = psi
-    end
+    psi = psi1
+    energy = 0
 end
 
-if !saveObs.completed
-    # Loop through omegas
-    while true
-        sh = qKCMSDM(saveObs.omega, gamma, kappa)
-        oplist = lindblad_list(N, saveObs.omega, gamma, kappa, s)
-        psi, energy = tebd(psi, oplist, sh, 0.01, tmax, 1.0, [TEBDNorm(1e-7), saveObs]; cutoff=1e-12)
-        H = lindblad(N, saveObs.omega, gamma, kappa, s, sh)
-        global E = inner(psi, H, psi)
-        global var = inner(psi, H, applyMPO(H, psi)) - inner(psi, H, psi)^2
-        global psi = psi
-
-        saveDirect = string(direct, "TEBD/right/gamma = ", gamma, "/omega = ",
-                            saveObs.omega, "/N = ", N, "/")
-        if !isdir(saveDirect)
-            mkpath(saveDirect)
-        end
-        saveDirect = string(saveDirect, "s = ", s, ".h5")
-        f = h5open(saveDirect, "w")
-        write(f, "psi", psi)
-        write(f, "energy", E)
-        write(f, "variance", var)
-        close(f)
-
-        saveObs.omega >= 1.0 && break
-        saveObs.omega += 0.1
-        saveObs.omega = round(saveObs.omega, digits=1)
+# Do a final evolution
+converge = false
+D = 2
+energy = 0
+while !converge
+    D *= 2
+    lastenergy = energy
+    psi, energy = tebd(psi, oplist, sh, 0.01, tmax, 1.0, [TEBDNorm(1e-6)]; maxdim=D, cutoff=1e-20)
+    if abs((lastenergy - energy) / (lastenergy + energy)) < 1e-5
+        converge = true
+    end
+    if D >= 32
+        converge = true
     end
 end
+#psi, energy = tebd(psi, oplist, sh, 0.001, tmax, 1, [TEBDNorm(1e-8)]; maxdim=D, cutoff=1e-16)
+H = lindblad(N, omega, gamma, kappa, s, sh)
+global E = inner(psi, H, psi)
+global var = inner(psi, H, applyMPO(H, psi)) - inner(psi, H, psi)^2
+global psi = psi
 
-# Save the final state
-f = h5open(saveObs.direct, "w")
-write(f, "psi", saveObs.psi)
-write(f, "completed", true)
-write(f, "omega", saveObs.omega)
+saveDirect = string(direct, "TEBD/right/gamma = ", gamma, "/omega = ",
+                    omega, "/N = ", N, "/")
+if !isdir(saveDirect)
+    mkpath(saveDirect)
+end
+saveDirect = string(saveDirect, "s = ", s, ".h5")
+f = h5open(saveDirect, "w")
+write(f, "psi", psi)
+write(f, "energy", E)
+write(f, "variance", var)
 close(f)
+println(E)
+println(var)
+
+H = lindblad(N, omega, gamma, kappa, s, sh)
+psi, energy = dmrg(psi, H; cutoff=1e-16, ishermitian=false, maxsweeps=100, nsites=2)
+global E = inner(psi, H, psi)
+global var = inner(psi, H, applyMPO(H, psi)) - inner(psi, H, psi)^2
+println(E)
+println(var)

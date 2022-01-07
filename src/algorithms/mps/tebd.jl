@@ -26,9 +26,9 @@ function tebd(psi::MPS, H::OpList, st::Sitetypes, dt::Number, tmax::Number,
     gates = trotterize(H, st, dt; evol=evol, order=order)
 
     # Determine number of steps
-    nsteps = Int(tmax / dt)
+    nsteps = Int(round(tmax / dt))
     save = save < dt ? dt : save
-    nsave = Int(save / dt)
+    nsave = Int(round(save / dt))
 
     # Initial norm
     normal::Float64 = get(kwargs, :norm, 0)
@@ -118,7 +118,11 @@ function checkdone!(observer::TEBDNorm)
     E1 /= observer.times[end] - observer.times[end-1]
     E2 = observer.measurements[end-1] - observer.measurements[end-2]
     E2 /= observer.times[end-1] - observer.times[end-2]
-    abs(E2 - E1) < observer.tol && return true
+    if abs(E2 + E1) < 1e-8
+        abs(E2 - E1) < observer.tol && return true
+    else
+        abs((E2 - E1) / (0.5*(E2 + E1))) < observer.tol && return true
+    end
     return false
 end
 

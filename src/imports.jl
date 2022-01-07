@@ -15,6 +15,7 @@ import Base:
     !,
     # functions
     collect,
+    conj,
     copy,
     cumsum,
     deepcopy,

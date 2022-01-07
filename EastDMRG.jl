@@ -1,9 +1,9 @@
 include("src/TensorNetworks.jl")
 
 # Model parameters
-N = 10
+N = 6
 s = 1.0
-c = 1/3
+c = 0.5
 
 # Create lattice type
 sh = spinhalf()

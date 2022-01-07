@@ -4,6 +4,7 @@ mutable struct ProjMPS <: AbstractProjMPS
     blocks::Vector{Array{Complex{Float64}, 2}}
     center::Int
     squared::Bool
+    coeff::Real
 end
 
 """
@@ -11,7 +12,7 @@ end
 
 Construct a projection on the dot product of psi and phi.
 """
-function ProjMPS(psi::MPS, phi::MPS; kwargs...)
+function ProjMPS(psi::MPS, phi::MPS, coeff::Real = 1.0; kwargs...)
     # Get key arguments
     squared::Bool = get(kwargs, :squared, false)
     center::Int = get(kwargs, :center, 1)
@@ -20,7 +21,7 @@ function ProjMPS(psi::MPS, phi::MPS; kwargs...)
     length(psi) != length(phi) && error("The MPS must have matching lengths.")
     dim(psi) != dim(phi) && error("The MPS must have matching physical dims.")
     blocks = [edgeblock(ProjMPS) for i=1:length(psi)]
-    projV = ProjMPS(psi, phi, blocks, 0, squared)
+    projV = ProjMPS(psi, phi, blocks, 0, squared, coeff)
     movecenter!(projV, center)
     return projV
 end
@@ -48,8 +49,7 @@ function buildleft!(projV::ProjMPS, idx::Int)
 
     # Contract the block with the tensors
     prod = contract(left, A1, 1, 1)
-    prod = contract(prod, A2, 1, 1)
-    prod = trace(prod, 1, 3)
+    prod = contract(prod, A2, [1, 2], [1, 2])
 
     # Save the block
     projV[idx] = prod
@@ -69,8 +69,7 @@ function buildright!(projV::ProjMPS, idx::Int)
 
     # Contract the block with the tensors
     prod = contract(A2, right, 3, 2)
-    prod = contract(A1, prod, 3, 3)
-    prod = trace(prod, 2, 4)
+    prod = contract(A1, prod, [2, 3], [2, 3])
 
     # Save the block
     projV[idx] = prod
@@ -104,15 +103,13 @@ function project(projV::ProjMPS, A, direction::Bool = 0, nsites::Int = 2)
         prod2 = moveidx(prod2, 1, -1)
         for i = 1:nsites
             B = conj(projV.phi[site - 1 + i])
-            prod2 = contract(prod2, B, length(size(prod)), 1)
-            prod2 = trace(prod2, 1, length(size(prod2))-1)
+            prod2 = contract(prod2, B, [length(size(prod)), 1], [1, 2])
         end
-        prod2 = contract(prod2, right, 1, 2)
-        prod2 = trace(prod2, 1, 2)
+        prod2 = contract(prod2, right, [1, 2], [2, 2])
         prod *= conj(prod2[1])
     end
 
-    return conj(prod)
+    return projV.coeff*conj(prod)
 end
 
 
@@ -128,13 +125,12 @@ function calculate(projV::ProjMPS)
 
     # Contract blocks with tensors
     prod = contract(left, B, 1, 1)
-    prod = contract(prod, A, 1, 1)
-    prod = trace(prod, 1, 3)
-    prod = contract(prod, right, 1, 1)
-    prod = trace(prod, 1, 2)
+    prod = contract(prod, A, [1, 2], [1, 2])
+    prod = contract(prod, right, [1, 2], [1, 2])
+
 
     if projV.squared == true
         return prod[1]*conj(prod[1])
     end
-    return prod[1]
+    return projV.coeff*prod[1]
 end

@@ -164,6 +164,30 @@ end
 *(O::MPO, psi::MPS) = applyMPO(O, psi)
 *(psi::MPS, O::MPO) = applyMPO(O, psi)
 
+
+function applyMPO(O1::MPO, O2::MPO; kwargs...)
+    O = MPO(dim(O1), length(O1))
+    # Loop through applying the MPO, and move the gauge across
+    for i = 1:length(O1)
+        M1 = O1[i]
+        M2 = O2[i]
+        M = contract(M1, M2, 3, 2)
+        M, cmb1 = combineidxs(M, [1, 4])
+        M, cmb2 = combineidxs(M, [2, 4])
+        M = moveidx(M, 3, 1)
+        O[i] = M
+        if i > 1
+            moveright!(O, i-1)
+        end
+    end
+
+    # Orthogonalize to first site with truncation
+    movecenter!(O, 1; kwargs...)
+
+    return O
+end
+
+
 """
     inner(psi::MPS, O::MPO, phi::MPO)
 
@@ -174,10 +198,8 @@ function inner(psi::MPS, O::MPO, phi::MPS)
     prod = ones((1, 1, 1))
     for i = 1:length(psi)
         prod = contract(prod, conj(psi[i]), 1, 1)
-        prod = contract(prod, O[i], 1, 1)
-        prod = trace(prod, 2, 4)
-        prod = contract(prod, phi[i], 1, 1)
-        prod = trace(prod, 2, 4)
+        prod = contract(prod, O[i], [1, 3], [1, 2])
+        prod = contract(prod, phi[i], [1, 3], [1, 2])
     end
 
     return prod[1, 1, 1]
@@ -204,6 +226,34 @@ function inner(O1::MPO, psi::MPS, O2::MPO, phi::MPS)
     return prod[1, 1, 1, 1]
 end
 
+
+function trace(O::MPO)
+    prod = ones(1)
+    for i = 1:length(O)
+        prod = contract(prod, O[i], 1, 1)
+        prod = trace(prod, 1, 2)
+    end
+    return prod[1]
+end
+
+function trace(O1::MPO, O2::MPO)
+    prod = ones((1, 1))
+    for i = 1:length(O1)
+        prod = contract(prod, O1[i], 1, 1)
+        prod = contract(prod, O2[i], [1, 3, 2], [1, 2, 3])
+    end
+    return prod[1, 1]
+end
+
+function trace(O1::MPO, O2::MPO, O3::MPO)
+    prod = ones((1, 1, 1))
+    for i = 1:length(O1)
+        prod = contract(prod, O1[i], 1, 1)
+        prod = contract(prod, O2[i], [1, 4], [1, 2])
+        prod = contract(prod, O3[i], [1, 4, 2], [1, 2, 3])
+    end
+    return prod[1, 1, 1]
+end
 
 ### Boundary MPOs
 """

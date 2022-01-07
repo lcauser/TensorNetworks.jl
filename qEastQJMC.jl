@@ -2,8 +2,8 @@ include("src/TensorNetworks.jl")
 
 N = 20
 kappa = 1.0
-omega = 0.4
-gamma = 0.05
+omega = 1.0
+gamma = 0.0
 dt = 0.01
 save = 0.1
 tmax = 100.0
@@ -12,7 +12,7 @@ tmax = 100.0
 sh = qKCMS(omega, gamma, kappa)
 
 # Create initial state
-psi = productMPS(sh, ["l" for i = 1:N])
+psi = productMPS(sh, ["da" for i = 1:N])
 
 # Create the Hamiltonian
 H = OpList(N)
@@ -33,11 +33,11 @@ end
 # Observers
 obslist = OpList(N)
 for i = 1:N
-    add!(obslist, ["pu"], [i], sqrt(kappa))
+    add!(obslist, ["pl"], [i], sqrt(kappa))
 end
 observer = QJMCOperators(obslist, sh)
 
 println("------------")
 gates = trotterize(H, sh, dt; evol="real")
 
-jumps, times = qjmc_simulation(psi, H, jumpops, sh, tmax, dt, [observer]; save=save, update=true)
+jumps, times = qjmc_simulation(psi, H, jumpops, sh, tmax, dt, [observer]; save=save, update=true, cutoff=1e-16, mindim=8)

@@ -121,8 +121,8 @@ function svd(x, idx::Int; kwargs...)
     try
         t = svd(y, alg=LinearAlgebra.DivideAndConquer())
     catch e
-        println(size(x))
-        println(size(y))
+        #println(size(x))
+        #println(size(y))
         t = svd(y, alg=LinearAlgebra.QRIteration())
     end
     # Assign SVD to individiual matrices

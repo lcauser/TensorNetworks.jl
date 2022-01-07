@@ -131,6 +131,14 @@ function truncate!(psi::AbstractMPS; kwargs...)
 end
 
 
+function conj(psi::AbstractMPS)
+    phi = deepcopy(psi)
+    for i = 1:length(phi)
+        phi[i] = conj(phi[i])
+    end
+    return phi
+end
+
 
 ### Creating copies
 copy(psi::AbstractMPS) = typeof(psi)(dim(psi), tensors(psi), center(psi))

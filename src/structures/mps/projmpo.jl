@@ -46,10 +46,8 @@ function buildleft!(projO::ProjMPO, idx::Int)
 
     # Contract the block with the tensors
     prod = contract(left, conj(A), 1, 1)
-    prod = contract(prod, O, 1, 1)
-    prod = trace(prod, 2, 4)
-    prod = contract(prod, A, 1, 1)
-    prod = trace(prod, 2, 4)
+    prod = contract(prod, O, [1, 3], [1, 2])
+    prod = contract(prod, A, [1, 3], [1, 2])
 
     # Save the block
     projO[idx] = prod
@@ -69,10 +67,8 @@ function buildright!(projO::ProjMPO, idx::Int)
 
     # Contract the block with the tensors
     prod = contract(A, right, 3, 3)
-    prod = contract(O, prod, 4, 4)
-    prod = trace(prod, 3, 5)
-    prod = contract(conj(A), prod, 3, 4)
-    prod = trace(prod, 2, 4)
+    prod = contract(O, prod, [3, 4], [2, 4])
+    prod = contract(conj(A), prod, [2, 3], [2, 4])
 
     # Save the block
     projO[idx] = prod
@@ -99,8 +95,7 @@ function project(projO::ProjMPO, A, direction::Bool = 0, nsites::Int = 2)
         O = projO.O[site-1+i]
 
         # Contract
-        prod = contract(prod, O, length(size(prod)), 1)
-        prod = trace(prod, 2, length(size(prod))-1)
+        prod = contract(prod, O, [length(size(prod)), 2], [1, 3])
     end
 
     # Contract with right block
@@ -122,14 +117,10 @@ function calculate(projO::ProjMPO)
 
     # Contract the block with the tensors
     prod = contract(left, conj(A), 1, 1)
-    prod = contract(prod, O, 1, 1)
-    prod = trace(prod, 2, 4)
-    prod = contract(prod, A, 1, 1)
-    prod = trace(prod, 2, 4)
+    prod = contract(prod, O, [1, 3], [1, 2])
+    prod = contract(prod, A, [1, 3], [1, 2])
 
     # Contract with right
-    prod = contract(prod, right, 1, 1)
-    prod = trace(prod, 1, 3)
-    prod = trace(prod, 1, 2)
+    prod = contract(prod, right, [1, 2, 3], [1, 2, 3])
     return prod[1]
 end

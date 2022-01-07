@@ -77,6 +77,15 @@ function normalize!(psi::MPS)
     psi[center(psi)] *= norm(psi)^-1
 end
 
+
+function conj(psi::MPS)
+    phi = deepcopy(psi)
+    for i = 1:length(phi)
+        phi[i] = conj(phi[i])
+    end
+    return phi
+end
+
 ### Products
 # Inner product of two MPS
 """

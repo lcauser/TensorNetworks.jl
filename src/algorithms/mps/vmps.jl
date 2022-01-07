@@ -1,15 +1,15 @@
 function vmps(psi::MPS, Ms::ProjMPSSum, Vs::ProjMPSSum; kwargs...)
     # DMRG options
     nsites::Int = get(kwargs, :nsites, 2)
-    krylovdim::Int = get(kwargs, :krylovdim, 1)
-    kryloviter::Int = get(kwargs, :kryloviter, 1)
+    krylovdim::Int = get(kwargs, :krylovdim, 3)
+    kryloviter::Int = get(kwargs, :kryloviter, 2)
 
     # Convergence criteria
     minsweeps::Int = get(kwargs, :minsweeps, 1)
     maxsweeps::Int = get(kwargs, :maxsweeps, 100)
     tol::Float64 = get(kwargs, :tol, 1e-10)
-    numconverges::Float64 = get(kwargs, :numconverges, 4)
-    verbose::Bool = get(kwargs, :verbose, 1)
+    numconverges::Float64 = get(kwargs, :numconverges, 3)
+    verbose::Bool = get(kwargs, :verbose, 0)
 
     # Truncation
     cutoff::Float64 = get(kwargs, :cutoff, 1e-12)
@@ -46,10 +46,12 @@ function vmps(psi::MPS, Ms::ProjMPSSum, Vs::ProjMPSSum; kwargs...)
             end
 
             # Construct the effective hamilonian and solve
-            f(x) = project(Ms, x, direction, nsites)
-            b = project(Vs, A0, direction, nsites)
-            vec, info = linsolve(f, b, A0, maxiter=kryloviter,
-                                 krylovdim=krylovdim)
+            vec = project(Vs, A0, direction, nsites)
+            if false
+                f(x) = project(Ms, x, direction, nsites)
+                vec, info = linsolve(f, vec, A0, maxiter=kryloviter,
+                                     krylovdim=krylovdim)
+            end
 
             # Replace
             replacesites!(psi, vec, site1, direction; cutoff=cutoff,
@@ -110,7 +112,7 @@ end
 
 function vmps(psis::Vector{MPS}, Vs::Vector{MPS}; kwargs...)
     # Orthogonalize psi and make a copy
-    psi0 = deepcopy(psi)
+    psi0 = deepcopy(psis[1])
     movecenter!(psi0, 1)
 
     # Create the projections

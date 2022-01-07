@@ -3,8 +3,8 @@ include("src/TensorNetworks.jl")
 
 # Model parameters
 kappa = 1.0
-omega = 0.2
-gamma = 0.4
+omega = 0.0
+gamma = 1.0
 Ds = [2, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 200, 300, 400, 500]
 numBins = 200
 directHome = "D:/qEast Data/DMRG/"

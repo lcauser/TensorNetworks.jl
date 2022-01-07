@@ -80,7 +80,7 @@ function trotterize(ops::OpList, st::Sitetypes, dt::Float64; kwargs...)
     # Decide on the trotter order
     order::Int = get(kwargs, :order, 2)
     order = rng == 1 ? 1 : order
-    (0 > order && order > 2) && error("Only trotter order 1 and 2 are supported.")
+    (0 > order || order > 2) && error("Only trotter order 1 and 2 are supported.")
 
     # Choose the time
     evol::String = get(kwargs, :evol, "imag")
@@ -142,10 +142,7 @@ function applygate!(psi::MPS, site::Int, gate, direction::Bool = false; kwargs..
     end
 
     # Contract with the gate
-    prod = contract(prod, gate, 2, 2)
-    for i = 1:rng-1
-        prod = trace(prod, 2, 4+rng)
-    end
+    prod = contract(prod, gate, [1+i for i = 1:rng], [2*i for i = 1:rng])
     prod = moveidx(prod, 2, -1)
 
     # Replace the tensors
