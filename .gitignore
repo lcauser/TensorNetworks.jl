@@ -31,3 +31,9 @@ qEastQJMC_s.jl
 qEastQJMC.jl
 qEastDMRG.jl
 East_iTEBD.jl
+EastPEPS0.jl
+EastPEPSAnalyze.jl
+EastPEPESFull0.jl
+EastPEPESFull1.jl
+EastPEPSprevious.jl
+FredkinTEBD.jl
