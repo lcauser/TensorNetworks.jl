@@ -1,8 +1,8 @@
 include("src/TensorNetworks.jl")
 
 # Model parameters
-N = 6
-s = 1.0
+N = 10
+s = 0.1
 c = 0.5
 
 # Create lattice type
@@ -10,7 +10,7 @@ sh = spinhalf()
 
 # Create hamiltonian
 A = -exp(-s)*sqrt(c*(1-c))*op(sh, "x") + c*op(sh, "pd") + (1-c)*op(sh, "pu")
-M = zeros((3, 2, 2, 3))
+M = zeros(ComplexF64, (3, 2, 2, 3))
 M[1, :, :, 1] = op(sh, "id")
 M[2, :, :, 1] = A
 M[3, :, :, 2] = op(sh, "pu")
@@ -22,7 +22,7 @@ H[1] = M1
 
 # Activity operator
 A = exp(-s)*sqrt(c*(1-c))*op(sh, "x")
-M = zeros((3, 2, 2, 3))
+M = zeros(ComplexF64, (3, 2, 2, 3))
 M[1, :, :, 1] = op(sh, "id")
 M[2, :, :, 1] = A
 M[3, :, :, 2] = op(sh, "pu")
@@ -38,7 +38,7 @@ psi = productMPS(sh, ["dn" for i = 1:N])
 movecenter!(psi, 1)
 
 # Do DMRG
-@time psi1, energy1 = dmrg(psi, H)
+@time psi1, energy1 = dmrg(psi, H; maxsweeps=100, cutoff=1e-16)
 
 # Measure Occupations and Correlations
 oplist = OpList(N)
