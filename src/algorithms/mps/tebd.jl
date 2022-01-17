@@ -1,18 +1,19 @@
 abstract type TEBDObserver end
 
 function tebd(psi::MPS, H::OpList, st::Sitetypes, dt::Number, tmax::Number,
-              save::Number, observers::Vector=[]; kwargs...)
+              save::Number, observers::Vector=[], projectors::Vector{MPS}=[];
+              kwargs...)
     # Determine truncation behaviour
     fullerror::Float64 = get(kwargs, :cutoff, 1e-12)
     fulldim::Int = get(kwargs, :maxdim, 0)
     updates::String = get(kwargs, :updates, "fast")
+    updates = length(projectors) > 0 ? "full" : "fast"
     if updates == "fast"
         gateserror = fullerror
         gatesdim = fulldim
     elseif updates == "full"
         gateserror = 0
         gatesdim = 0
-        error("Full updates are not currently supported.")
     else
         error("Only fast or full updates are supported.")
     end
@@ -46,6 +47,15 @@ function tebd(psi::MPS, H::OpList, st::Sitetypes, dt::Number, tmax::Number,
         # Apply gates
         applygates!(psi, gates; mindim=mindim, maxdim=gatesdim, cutoff=gateserror)
 
+        # Project out
+        if length(projectors) > 0
+            psis = MPS[psi]
+            for i = 1:length(projectors)
+                push!(psis, -inner(projectors[i], psi)*projectors[i])
+            end
+            psi = vmps(psis, MPS[]; cutoff=fullerror, maxdim=fulldim)
+        end
+
         # Renormalize
         psinorm = log(real(norm(psi)))
         normal += psinorm
@@ -71,6 +81,12 @@ function tebd(psi::MPS, H::OpList, st::Sitetypes, dt::Number, tmax::Number,
 
     return psi, psinorm / dt
 
+end
+
+
+function tebd(psi::MPS, H::OpList, st::Sitetypes, dt::Number, tmax::Number,
+              save::Number, observers::Vector=[]; kwargs...)
+    return tebd(psi, H, st, dt, tmax, save, observers, MPS[]; kwargs...)
 end
 
 ### Observers
