@@ -45,13 +45,14 @@ function vmps(psi::MPS, Ms::ProjMPSSum, Vs::ProjMPSSum; kwargs...)
                 A0 = contract(A0, psi[site1+i], 2+i, 1)
             end
 
-            # Construct the effective hamilonian and solve
+            # Calculate the vector
             vec = project(Vs, A0, direction, nsites)
-            if false
-                f(x) = project(Ms, x, direction, nsites)
-                vec, info = linsolve(f, vec, A0, maxiter=kryloviter,
-                                     krylovdim=krylovdim)
-            end
+
+            # Project out
+            #f(x) = project(Ms, x, direction, nsites)
+            #println(f(vec))
+            #vec, info = linsolve(f, vec, A0, maxiter=kryloviter,
+            #                     krylovdim=krylovdim)
 
             # Replace
             replacesites!(psi, vec, site1, direction; cutoff=cutoff,

@@ -137,7 +137,7 @@ end
 
 function dmrg(psi0::MPS, H::MPO, V::MPS; kwargs...)
     movecenter!(psi0, 1)
-    Hs = [ProjMPS(psi0, V, -0.01; squared=true), ProjMPO(psi0, H)]
+    Hs = [ProjMPS(psi0, V, 1.0; squared=true), ProjMPO(psi0, H)]
     return dmrg(psi0, ProjMPSSum(Hs); kwargs...)
 end
 
@@ -149,7 +149,7 @@ function dmrg(psi0::MPS, Hs::Vector{MPO}, Vs::Vector{MPS}; kwargs...)
         push!(Hs, ProjMPO(psi0, H))
     end
     for V in Vs
-        push!(Hs, ProjMPS(psi0, V, -1.0; squared=true))
+        push!(Hs, ProjMPS(psi0, V, 1.0; squared=true))
     end
     return dmrg(psi0, ProjMPSSum(Hs); kwargs...)
 end

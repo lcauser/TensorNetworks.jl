@@ -2,7 +2,7 @@ include("src/TensorNetworks.jl")
 
 # Model parameters
 N = 10
-s = 0.1
+s = 0
 c = 0.5
 
 # Create lattice type
@@ -34,7 +34,6 @@ K[1] = M1
 
 # Create initial guess
 psi = productMPS(sh, ["dn" for i = 1:N])
-#psi = randomMPS(2, N, 1)
 movecenter!(psi, 1)
 
 # Do DMRG
@@ -51,3 +50,7 @@ end
 expectations = inner(sh, psi1, oplist, psi1)
 occupations = expectations[1:N]
 correlations = expectations[N+1:end]
+
+# Find excited state
+psi2 = randomMPS(2, N, 1)
+@time psi2, energy2 = dmrg(psi2, H, psi; maxsweeps=100, cutoff=1e-16)
