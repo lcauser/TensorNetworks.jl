@@ -18,7 +18,7 @@ function MPSProjector(left::MPS, right::MPS; kwargs...)
 
     # Fetch constant
     constant::ComplexF64 = get(kwargs, :constant, 0.0)
-    constant == 0.0 && constant = inner(left, right)
+    constant = constant == 0.0 ? inner(left, right) : constant
 
     # Create the projection
     return MPSProjector(dim(left), left, right, constant)
@@ -38,9 +38,9 @@ Apply an MPS Projector to an MPS. Specify whether to apply the hermitian conjuga
 """
 function applyMPO(O::MPSProjector, psi::MPS, hermitian=false)
     if !hermitian
-        return (inner(O.left, psi) / O.constant) * deepcopy(O.right)
+        return (inner(O.leftMPS, psi) / O.constant) * deepcopy(O.rightMPS)
     else
-        return (inner(psi, O.right) / O.constant) * conj(O.left)
+        return (inner(psi, O.rightMPS) / O.constant) * conj(O.leftMPS)
     end
 end
 

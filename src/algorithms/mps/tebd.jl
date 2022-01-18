@@ -1,8 +1,7 @@
 abstract type TEBDObserver end
 
 function tebd(psi::MPS, H::OpList, st::Sitetypes, dt::Number, tmax::Number,
-              save::Number, observers::Vector=[], projectors::Vector{MPS}=[];
-              kwargs...)
+              save::Number, observers::Vector=[], projectors=[]; kwargs...)
     # Determine truncation behaviour
     fullerror::Float64 = get(kwargs, :cutoff, 1e-12)
     fulldim::Int = get(kwargs, :maxdim, 0)
@@ -25,6 +24,19 @@ function tebd(psi::MPS, H::OpList, st::Sitetypes, dt::Number, tmax::Number,
     order::Int = get(kwargs, :order, 2)
     !(order == 1 || order == 2) && error("Only first or second order trotter supported.")
     gates = trotterize(H, st, dt; evol=evol, order=order)
+
+    # Process the projectors; MPS, MPO and MPSProjector allowed
+    i = 1
+    projs = []
+    for proj = projectors
+        if typeof(proj) == MPS
+            push!(projs, MPSProjector(proj, proj))
+        elseif typeof(proj) != MPO && typeof(proj) != MPSProjector
+            error("Only MPS, MPO and MPSProjectors are supported as projectors.")
+        else
+            push!(projs, proj)
+        end
+    end
 
     # Determine number of steps
     nsteps = Int(round(tmax / dt))
@@ -50,8 +62,8 @@ function tebd(psi::MPS, H::OpList, st::Sitetypes, dt::Number, tmax::Number,
         # Project out
         if length(projectors) > 0
             psis = MPS[psi]
-            for i = 1:length(projectors)
-                push!(psis, -inner(projectors[i], psi)*projectors[i])
+            for i = 1:length(projs)
+                push!(psis, -1*(projs[i]*psi))
             end
             psi = vmps(psis, MPS[]; cutoff=fullerror, maxdim=fulldim)
         end
@@ -83,11 +95,11 @@ function tebd(psi::MPS, H::OpList, st::Sitetypes, dt::Number, tmax::Number,
 
 end
 
-
 function tebd(psi::MPS, H::OpList, st::Sitetypes, dt::Number, tmax::Number,
               save::Number, observers::Vector=[]; kwargs...)
     return tebd(psi, H, st, dt, tmax, save, observers, MPS[]; kwargs...)
 end
+
 
 ### Observers
 """

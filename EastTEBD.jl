@@ -26,3 +26,11 @@ movecenter!(psi, 1)
 for dt in [0.1, 0.01, 0.001]
     @time psi, energy = tebd(psi, oplist, sh, dt, tmax, save, [TEBDNorm()])
 end
+
+# Find the excited state
+psi2 = randomMPS(2, N, 1)
+energy2 = 1
+movecenter!(psi2, 1)
+for dt in [0.1, 0.01, 0.001]
+    @time psi2, energy2 = tebd(psi2, oplist, sh, dt, tmax, save, [TEBDNorm()], [psi])
+end
