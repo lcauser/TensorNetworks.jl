@@ -39,6 +39,10 @@ movecenter!(psi, 1)
 # Do DMRG
 @time psi1, energy1 = dmrg(psi, H; maxsweeps=100, cutoff=1e-16)
 
+# Find excited state
+psi2 = randomMPS(2, N, 1)
+@time psi1, energy2 = dmrg(psi2, H, psi; maxsweeps=100, cutoff=1e-16)
+
 # Measure Occupations and Correlations
 oplist = OpList(N)
 for i = 1:N
@@ -50,7 +54,3 @@ end
 expectations = inner(sh, psi1, oplist, psi1)
 occupations = expectations[1:N]
 correlations = expectations[N+1:end]
-
-# Find excited state
-psi2 = randomMPS(2, N, 1)
-@time psi2, energy2 = dmrg(psi2, H, psi; maxsweeps=100, cutoff=1e-16)

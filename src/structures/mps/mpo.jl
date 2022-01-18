@@ -162,7 +162,7 @@ function applyMPO(O::MPO, psi::MPS, hermitian=false; kwargs...)
     return phi
 end
 *(O::MPO, psi::MPS) = applyMPO(O, psi)
-*(psi::MPS, O::MPO) = applyMPO(O, psi)
+*(psi::MPS, O::MPO) = applyMPO(O, psi, true)
 
 
 function applyMPO(O1::MPO, O2::MPO; kwargs...)
