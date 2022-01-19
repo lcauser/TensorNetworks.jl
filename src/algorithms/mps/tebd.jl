@@ -3,19 +3,9 @@ abstract type TEBDObserver end
 function tebd(psi::MPS, H::OpList, st::Sitetypes, dt::Number, tmax::Number,
               save::Number, observers::Vector=[], projectors=[]; kwargs...)
     # Determine truncation behaviour
-    fullerror::Float64 = get(kwargs, :cutoff, 1e-12)
-    fulldim::Int = get(kwargs, :maxdim, 0)
-    updates::String = get(kwargs, :updates, "fast")
-    updates = length(projectors) > 0 ? "full" : "fast"
-    if updates == "fast"
-        gateserror = fullerror
-        gatesdim = fulldim
-    elseif updates == "full"
-        gateserror = 0
-        gatesdim = 0
-    else
-        error("Only fast or full updates are supported.")
-    end
+    cutoff::Float64 = get(kwargs, :cutoff, 1e-12)
+    variational_cutoff::Float64 = get(kwargs, :variational_cutoff, cutoff)
+    maxdim::Int = get(kwargs, :maxdim, 0)
     mindim::Int = get(kwargs, :mindim, 1)
 
     # Trotterize the oplist
@@ -26,6 +16,7 @@ function tebd(psi::MPS, H::OpList, st::Sitetypes, dt::Number, tmax::Number,
     gates = trotterize(H, st, dt; evol=evol, order=order)
 
     # Process the projectors; MPS, MPO and MPSProjector allowed
+    projsteps::Int = get(kwargs, :projection_every, 10)
     i = 1
     projs = []
     for proj = projectors
@@ -37,6 +28,14 @@ function tebd(psi::MPS, H::OpList, st::Sitetypes, dt::Number, tmax::Number,
             push!(projs, proj)
         end
     end
+    if length(projectors) > 0
+        psis = MPS[psi]
+        for i = 1:length(projs)
+            push!(psis, -1*(projs[i]*psi))
+        end
+        psi = vmps(psis, MPS[]; cutoff=variational_cutoff, maxdim=maxdim)
+    end
+
 
     # Determine number of steps
     nsteps = Int(round(tmax / dt))
@@ -57,15 +56,15 @@ function tebd(psi::MPS, H::OpList, st::Sitetypes, dt::Number, tmax::Number,
     psinorm = log(norm(psi))
     while !converged
         # Apply gates
-        applygates!(psi, gates; mindim=mindim, maxdim=gatesdim, cutoff=gateserror)
+        applygates!(psi, gates; mindim=mindim, maxdim=maxdim, cutoff=cutoff)
 
         # Project out
-        if length(projectors) > 0
+        if length(projectors) > 0 && ((step + 1) % projsteps) == 0
             psis = MPS[psi]
             for i = 1:length(projs)
                 push!(psis, -1*(projs[i]*psi))
             end
-            psi = vmps(psis, MPS[]; cutoff=fullerror, maxdim=fulldim)
+            psi = vmps(psis, MPS[]; cutoff=variational_cutoff, maxdim=maxdim)
         end
 
         # Renormalize
