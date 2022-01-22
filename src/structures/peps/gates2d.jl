@@ -33,3 +33,20 @@ function trotterize(st::Sitetypes, oplist::OpList2d, dt::Float64)
 
     return gates2d(oplist.length, gates, sites, directions)
 end
+
+
+function getgate(gl::gates2d, i::Int, j::Int, dir::Bool)
+    # Find the indexs with the given sites
+    idxs = []
+    for k = 1:length(gl.sites)
+        if gl.sites[k][1] == i && gl.sites[k][2] == j
+            push!(idxs, k)
+        end
+    end
+    # check right direction
+    for idx = idxs
+        gl.directions[idx] == dir && return gl.gates[idx]
+    end
+
+    return 0
+end

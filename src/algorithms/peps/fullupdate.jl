@@ -1,4 +1,4 @@
-function fullupdate(psi::PEPS, gate, dt::Real, st::Sitetypes, ops, coeffs; kwargs...)
+function fullupdate(psi::PEPS, H::OpList2d, dt::Number, st::Sitetypes; kwargs...)
     # Get convergence arguments
     maxiter = get(kwargs, :maxiter, 10000)
     miniter = get(kwargs, :miniter, 1000)
@@ -9,20 +9,20 @@ function fullupdate(psi::PEPS, gate, dt::Real, st::Sitetypes, ops, coeffs; kwarg
     maxdim = get(kwargs, :maxdim, maxbonddim(psi))
     N = length(psi)
     chi = get(kwargs, :chi, maxdim^2)
-    chieval = get(kwargs, :chieval, 100)
+    chieval = get(kwargs, :chi_evaluate, 100)
     dropoff::Int = get(kwargs, :dropoff, 0)
 
-    # Create the gate
-    gate = exp(dt*creategate(st, ops, coeffs), [2, 4])
+    # Create the gates
+    gates = trotterize(st, H, dt)
 
     # Create the environment
     env = Environment(psi, psi; chi=chi, dropoff=dropoff)
 
     # Measure energies
-    ops = [[op(st, name) for name in op1] for op1 in ops]
     function calculateenergy(psi)
         evalenv = Environment(psi, psi; chi=chieval)
-        return real(inner(evalenv, ops, coeffs) / inner(env))
+        normal = inner(evalenv)
+        return real(sum(inner(st, evalenv, H) / normal))
     end
 
     # Loop through until convergence
@@ -32,8 +32,7 @@ function fullupdate(psi::PEPS, gate, dt::Real, st::Sitetypes, ops, coeffs; kwarg
     energy = 0
     maxchi = 0
     while !converge
-        # Keep track of change in norm for energy
-        energy = 0
+        # Keep track of bond dimension and cost function
         maxcost = 0
         maxchi = 0
 
@@ -45,9 +44,11 @@ function fullupdate(psi::PEPS, gate, dt::Real, st::Sitetypes, ops, coeffs; kwarg
                 # Optimize
                 build!(env, i, j, false)
                 maxchi = max(maxchi, maxbonddim(env))
-                normal, cost = optimize(env, gate, i, j, false; chi=chi, kwargs...)
-                energy += log(normal)/dt
-                maxcost = max(cost, maxcost)
+                gate = getgate(gates, i, j, false)
+                if gate != 0
+                    normal, cost = optimize(env, gate, i, j, false; chi=chi, kwargs...)
+                    maxcost = max(cost, maxcost)
+                end
                 j += 2
             end
             build!(env, i, N, false)
@@ -58,9 +59,11 @@ function fullupdate(psi::PEPS, gate, dt::Real, st::Sitetypes, ops, coeffs; kwarg
                 # Optimize
                 build!(env, i, j+1, false)
                 maxchi = max(maxchi, maxbonddim(env))
-                normal, cost = optimize(env, gate, i, j, false; chi=chi, kwargs...)
-                energy += log(normal)/dt
-                maxcost = max(cost, maxcost)
+                gate = getgate(gates, i, j, false)
+                if gate != 0
+                    normal, cost = optimize(env, gate, i, j, false; chi=chi, kwargs...)
+                    maxcost = max(cost, maxcost)
+                end
                 j -= 2
             end
         end
@@ -73,9 +76,11 @@ function fullupdate(psi::PEPS, gate, dt::Real, st::Sitetypes, ops, coeffs; kwarg
                 # Optimize
                 build!(env, j, i, true)
                 maxchi = max(maxchi, maxbonddim(env))
-                normal, cost = optimize(env, gate, j, i, true; chi=chi, kwargs...)
-                energy += log(normal)/dt
-                maxcost = max(cost, maxcost)
+                gate = getgate(gates, j, i, true)
+                if gate != 0
+                    normal, cost = optimize(env, gate, j, i, true; chi=chi, kwargs...)
+                    maxcost = max(cost, maxcost)
+                end
                 j += 2
             end
             build!(env, N, i, true)
@@ -87,9 +92,11 @@ function fullupdate(psi::PEPS, gate, dt::Real, st::Sitetypes, ops, coeffs; kwarg
                 # Optimize
                 build!(env, j+1, i, true)
                 maxchi = max(maxchi, maxbonddim(env))
-                normal, cost = optimize(env, gate, j, i, true; chi=chi, kwargs...)
-                energy += log(normal)/dt
-                maxcost = max(cost, maxcost)
+                gate = getgate(gates, j, i, true)
+                if gate != 0
+                    normal, cost = optimize(env, gate, j, i, true; chi=chi, kwargs...)
+                    maxcost = max(cost, maxcost)
+                end
                 j -= 2
             end
         end
@@ -106,7 +113,7 @@ function fullupdate(psi::PEPS, gate, dt::Real, st::Sitetypes, ops, coeffs; kwarg
             build!(env, 1, 1, false)
             maxchi = max(maxchi, maxbonddim(env))
             energy = calculateenergy(psi)
-            diff = energy-lastenergy
+            diff = abs(energy-lastenergy)
             diff = abs(energy) < 1e-10 ? diff : diff / abs(energy)
             converge = (diff < tol) ? true : converge
             lastenergy = energy
@@ -120,8 +127,9 @@ end
 
 function optimize(env::Environment, gate, site11, site12, dir; kwargs...)
     # Key arguments
-    maxiter::Int = get(kwargs, :update_iterations, 3)
-    tol::Float64 = get(kwargs, :update_tol, 1e-8)
+    maxiter::Int = get(kwargs, :update_iterations, 10)
+    tol::Float64 = get(kwargs, :update_tol, 1e-10)
+    cutoff::Float64 = get(kwargs, :cutoff, 1e-8)
     maxdim = get(kwargs, :maxdim, 1)
 
     # Find the sites
@@ -145,7 +153,7 @@ function optimize(env::Environment, gate, site11, site12, dir; kwargs...)
     fulltensor = moveidx(fulltensor, 2, 4)
     prod, cmb1 = combineidxs(fulltensor, [1, 2])
     prod, cmb1 = combineidxs(prod, [1, 2])
-    R1, S, R2 = svd(prod, 2; cutoff=1e-6, maxdim=maxdim)
+    R1, S, R2 = svd(prod, 2; cutoff=cutoff, maxdim=maxdim)
     R1 = contract(R1, sqrt.(S), 2, 1)
     R2 = contract(sqrt.(S), R2, 2, 1)
     R1 = moveidx(R1, 1, 2)
@@ -194,9 +202,9 @@ function optimize(env::Environment, gate, site11, site12, dir; kwargs...)
         cost = calculatecost(R1, R2)
         converge = cost < tol
         diff = abs((oldcost-cost) / (oldcost + cost))
-        #converge = converge ? true : diff < 1e-5
+        converge = converge ? true : diff < 1e-5
         converge = iters >= maxiter ? true : converge
-        #iters >= maxiter && println("et oh")
+        #iters >= maxiter && println(cost)
         if converge && (D < maxdim) && (cost > tol)
             D += 1
             R1, R2 = increasedim(R1, R2, D)
