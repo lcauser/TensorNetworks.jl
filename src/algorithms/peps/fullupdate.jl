@@ -44,6 +44,8 @@ function fullupdate(psi::PEPS, H::OpList2d, dt::Number, st::Sitetypes; kwargs...
                 if gate != 0
                     cost = optimize(env, gate, i, j, false; chi=chi, kwargs...)
                     maxcost = max(cost, maxcost)
+                else
+                    println("nope")
                 end
                 j += 2
             end
@@ -105,7 +107,7 @@ function fullupdate(psi::PEPS, H::OpList2d, dt::Number, st::Sitetypes; kwargs...
             build!(env, 1, 1, false)
             maxchi = max(maxchi, maxbonddim(env))
             energy = calculateenergy(psi)
-            diff = energy-lastenergy
+            diff = (energy-lastenergy) / (saveiter * dt)
             diff = abs(energy) < 1e-10 ? diff : diff / abs(energy)
             converge = (diff < tol) ? true : converge
             lastenergy = energy
@@ -254,8 +256,8 @@ function optimize(env::Environment, gate, site11::Int, site12::Int, dir::Bool; k
         end
 
         # Update sites
-        psi[site11, site12] = A1
-        psi[site21, site22] = A2
+        env.psi[site11, site12] = A1
+        env.psi[site21, site22] = A2
     else
         cost = costoriginal
     end
