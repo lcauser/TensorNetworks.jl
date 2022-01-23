@@ -30,13 +30,16 @@ for i = 1:N
 end
 
 println("--------")
-@time begin
-psi, energy = fullupdate(psi, H, 0.1, sh; maxdim=1, maxiter=10000, miniter=2000, chi=1, saveiter=1000)
-psi, energy = fullupdate(psi, H, 0.01, sh; maxdim=2, maxiter=10000, miniter=2000, chi=1, saveiter=1000)
-psi, energy = fullupdate(psi, H, 0.01, sh; maxdim=3, maxiter=10000, miniter=2000, chi=1, saveiter=1000)
-psi, energy = fullupdate(psi, H, 0.01, sh; maxdim=4, maxiter=10000, miniter=2000, chi=1, saveiter=1000)
-psi, energy = fullupdate(psi, H, 0.001, sh; maxdim=4, maxiter=10000, miniter=200, chi=4, dropoff=1, saveiter=100)
-end
+#@time begin
+psi, energy = fullupdate(psi, H, 0.1, sh; maxdim=1, maxiter=10000, miniter=100, chi=1, saveiter=100)
+psi, energy = fullupdate(psi, H, 0.01, sh; maxdim=2, maxiter=10000, miniter=1000, chi=1, saveiter=500)
+psi2 = deepcopy(psi)
+psi, energy = fullupdate(psi, H, 0.01, sh; maxdim=3, maxiter=10000, miniter=1000, chi=1, saveiter=500)
+psi3 = deepcopy(psi)
+psi, energy = fullupdate(psi, H, 0.01, sh; maxdim=4, maxiter=10000, miniter=1000, chi=1, saveiter=500)
+psi4 = deepcopy(psi)
+psi, energy = fullupdate(psi, H, 0.001, sh; maxdim=4, maxiter=10000, miniter=200, chi=16, dropoff=4, saveiter=100)
+#end
 
 ns = OpList2d(N)
 for i = 1:N

@@ -4,9 +4,9 @@ function vbMPO(O::MPO, env::Environment, direction::Bool, level::Int; kwargs...)
     maxchi = get(kwargs, :chi, 0)
 
     # Convergence criteria
-    maxiter = get(kwargs, :maxiter, 4)
+    maxiter = get(kwargs, :maxiter, 20)
     miniter = get(kwargs, :miniter, 2)
-    tol = get(kwargs, :tol, 1e-6)
+    tol = get(kwargs, :tol, 1e-8)
 
     # Make a copy of the bMPO and truncate
     movecenter!(O, 1)
@@ -25,7 +25,7 @@ function vbMPO(O::MPO, env::Environment, direction::Bool, level::Int; kwargs...)
     rev = false
     iterations = 0
     chi = maxbonddim(O)
-    #println("------")
+    diff = 0
     while !converged
         # Loop through each site and optimize
         for i = 1:length(O)
@@ -56,5 +56,7 @@ function vbMPO(O::MPO, env::Environment, direction::Bool, level::Int; kwargs...)
         converged = (maxiter != 0 && iterations >= maxiter) ? true : converged
         converged = iterations < miniter ? false : converged
     end
+    #println(diff)
+    #println(iterations)
     return O
 end

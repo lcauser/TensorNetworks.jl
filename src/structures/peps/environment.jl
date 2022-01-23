@@ -500,9 +500,9 @@ function ReducedTensorEnv(env::Environment, site1, site2, dir, A1, A2)
     vals = diagm([real(val) < 0 ? 0.0 : val for val in F.values])
 
     # Find the X matric, and apply LQ/QR decompositon
-    X = contract(F.vectors, sqrt.(vals), 2, 1)
-    X = moveidx(X, 1, 2)
-    X = reshape(X, (size(X)[1], dims[1], dims[3]))
+    #X = contract(F.vectors, sqrt.(vals), 2, 1)
+    #X = moveidx(X, 1, 2)
+    #X = reshape(X, (size(X)[1], dims[1], dims[3]))
     #Xprime, R = qr(X, 2)
     #L, Xprime = lq(X, 3)
     #X = contract(X, inv(R), 2, 1)
