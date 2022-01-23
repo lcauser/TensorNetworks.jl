@@ -2,7 +2,7 @@ include("src/TensorNetworks.jl")
 
 N = 6
 c = 0.5
-s = 0.1
+s = 1.0
 dt = 0.01
 maxdim = 3
 cutoff = 0

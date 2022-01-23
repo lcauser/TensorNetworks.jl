@@ -192,7 +192,7 @@ function optimize(env::Environment, gate, site11::Int, site12::Int, dir::Bool; k
 
             # Calculate effecitve dot
             Neff = effectivenorm(renv, R1, R2, site)
-            normeff(x) = site ? contractnorm(Neff, R1, x, site) : effectivenorm(Neff, x, R2, site)
+            normeff(x) = site ? contractnorm(Neff, R1, x, site) : contractnorm(Neff, x, R2, site)
             doteff = effectivedot(renv, site ? R1 : R2, fulltensor, site)
 
             # Optimize the site
@@ -263,14 +263,14 @@ function optimize(env::Environment, gate, site11::Int, site12::Int, dir::Bool; k
 end
 
 
-function contractnorm(renv, R1, R2, site::Bool)
+function contractnorm(norm, R1, R2, site::Bool)
     if site == true
         # Second site
-        prod = contract(renv, R2, [2, 4], [2, 1])
+        prod = contract(norm, R2, [2, 4], [2, 1])
         prod = moveidx(prod, 1, 2)
     else
         # First site
-        prod = contract(R1, renv, [1, 2], [4, 2])
+        prod = contract(R1, norm, [1, 2], [4, 2])
         prod = moveidx(prod, 3, 1)
         prod = moveidx(prod, 3, 2)
     end
