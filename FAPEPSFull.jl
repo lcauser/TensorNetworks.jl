@@ -2,7 +2,7 @@ include("src/TensorNetworks.jl")
 
 N = 6
 c = 0.5
-s = 0.0354813
+s = -0.1
 dt = 0.01
 maxdim = 3
 cutoff = 0
@@ -12,26 +12,20 @@ H = OpList2d(N)
 for i = 1:N
     for j = 1:N
         if i <= N-1
-            if i == 1 && j == 1
-                add!(H, ["id", "x"], [i, j], true, sqrt(c*(1-c))*exp(-s))
-                add!(H, ["id", "pu"], [i, j], true, -(1-c))
-                add!(H, ["id", "pd"], [i, j], true, -c)
-            else
-                add!(H, ["n", "x"], [i, j], true, sqrt(c*(1-c))*exp(-s))
-                add!(H, ["n", "pu"], [i, j], true, -(1-c))
-                add!(H, ["n", "pd"], [i, j], true, -c)
-            end
+            add!(H, ["n", "x"], [i, j], true, sqrt(c*(1-c))*exp(-s))
+            add!(H, ["n", "pu"], [i, j], true, -(1-c))
+            add!(H, ["n", "pd"], [i, j], true, -c)
+            add!(H, ["x", "n"], [i, j], true, sqrt(c*(1-c))*exp(-s))
+            add!(H, ["pu", "n"], [i, j], true, -(1-c))
+            add!(H, ["pd", "n"], [i, j], true, -c)
         end
         if j <= N-1
-            if i == 1 && j == 1
-                add!(H, ["id", "x"], [i, j], false, sqrt(c*(1-c))*exp(-s))
-                add!(H, ["id", "pu"], [i, j], false, -(1-c))
-                add!(H, ["id", "pd"], [i, j], false, -c)
-            else
-                add!(H, ["n", "x"], [i, j], false, sqrt(c*(1-c))*exp(-s))
-                add!(H, ["n", "pu"], [i, j], false, -(1-c))
-                add!(H, ["n", "pd"], [i, j], false, -c)
-            end
+            add!(H, ["n", "x"], [i, j], false, sqrt(c*(1-c))*exp(-s))
+            add!(H, ["n", "pu"], [i, j], false, -(1-c))
+            add!(H, ["n", "pd"], [i, j], false, -c)
+            add!(H, ["x", "n"], [i, j], false, sqrt(c*(1-c))*exp(-s))
+            add!(H, ["pu", "n"], [i, j], false, -(1-c))
+            add!(H, ["pd", "n"], [i, j], false, -c)
         end
     end
 end
