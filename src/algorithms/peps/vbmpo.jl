@@ -4,7 +4,7 @@ function vbMPO(O::MPO, env::Environment, direction::Bool, level::Int; kwargs...)
     maxchi = get(kwargs, :chi, 0)
 
     # Convergence criteria
-    maxiter = get(kwargs, :maxiter, 20)
+    maxiter = get(kwargs, :maxiter, 40)
     miniter = get(kwargs, :miniter, 2)
     tol = get(kwargs, :tol, 1e-8)
 
@@ -58,5 +58,6 @@ function vbMPO(O::MPO, env::Environment, direction::Bool, level::Int; kwargs...)
     end
     #println(diff)
     #println(iterations)
+    #iterations == maxiter && println(diff)
     return O
 end
