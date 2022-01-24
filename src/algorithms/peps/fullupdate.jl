@@ -1,4 +1,4 @@
-function fullupdate(psi::PEPS, H::OpList2d, dt::Number, st::Sitetypes; kwargs...)
+function fullupdate(psi::PEPS, H::OpList2d, dt::Number, st::Sitetypes, projectors::Vector{PEPS} = []; kwargs...)
     # Get convergence arguments
     maxiter = get(kwargs, :maxiter, 10000)
     miniter = get(kwargs, :miniter, 1000)
@@ -17,12 +17,23 @@ function fullupdate(psi::PEPS, H::OpList2d, dt::Number, st::Sitetypes; kwargs...
 
     # Create the environment
     env = Environment(psi, psi; chi=chi, dropoff=dropoff)
+    projEnvs = [Environment(psi, proj; chi=chi, dropoff=dropoff) for proj = projectors]
+
+    # Function to build all environments
+
 
     # Measure energies
     function calculateenergy(psi)
         evalenv = Environment(psi, psi; chi=chieval)
         normal = inner(evalenv)
         return real(sum(inner(st, evalenv, H) / normal))
+    end
+
+    function buildenv!(i::Int, j::Int, dir::Bool)
+        build!(env, i, j, dir)
+        for projEnv = projEnvs
+            build!(projEnv, i, j, dir)
+        end
     end
 
     # Loop through until convergence
@@ -38,27 +49,30 @@ function fullupdate(psi::PEPS, H::OpList2d, dt::Number, st::Sitetypes; kwargs...
             j = 1
             while j < N
                 # Optimize
-                build!(env, i, j, false)
+                buildenv!(i, j, false)
                 maxchi = max(maxchi, maxbonddim(env))
                 gate = getgate(gates, i, j, false)
                 if gate != 0
-                    cost = optimize(env, gate, i, j, false; chi=chi, kwargs...)
+                    cost = optimize(env, gate, i, j, false, projEnvs; chi=chi, kwargs...)
                     maxcost = max(cost, maxcost)
                 else
                     println("nope")
                 end
                 j += 2
             end
-            build!(env, i, N, false)
+            buildenv!(i, N, false)
 
             j = N - 2
             while j > 1
                 # Optimize
                 build!(env, i, j+1, false)
+                for projEnv = projEnvs
+                    build!(projEnv, i, j+1, false)
+                end
                 maxchi = max(maxchi, maxbonddim(env))
                 gate = getgate(gates, i, j, false)
                 if gate != 0
-                    cost = optimize(env, gate, i, j, false; chi=chi, kwargs...)
+                    cost = optimize(env, gate, i, j, false, projEnvs; chi=chi, kwargs...)
                     maxcost = max(cost, maxcost)
                 end
                 j -= 2
@@ -70,26 +84,26 @@ function fullupdate(psi::PEPS, H::OpList2d, dt::Number, st::Sitetypes; kwargs...
             j = 1
             while j < N
                 # Optimize
-                build!(env, j, i, true)
+                buildenv!(j, i, true)
                 maxchi = max(maxchi, maxbonddim(env))
                 gate = getgate(gates, j, i, true)
                 if gate != 0
-                    cost = optimize(env, gate, j, i, true; chi=chi, kwargs...)
+                    cost = optimize(env, gate, j, i, true, projEnvs; chi=chi, kwargs...)
                     maxcost = max(cost, maxcost)
                 end
                 j += 2
             end
-            build!(env, N, i, true)
+            buildenv!(N, i, true)
             maxchi = max(maxchi, maxbonddim(env))
 
             j = N - 2
             while j > 1
                 # Optimize
-                build!(env, j+1, i, true)
+                buildenv!(j+1, i, true)
                 maxchi = max(maxchi, maxbonddim(env))
                 gate = getgate(gates, j, i, true)
                 if gate != 0
-                    cost = optimize(env, gate, j, i, true; chi=chi, kwargs...)
+                    cost = optimize(env, gate, j, i, true, projEnvs; chi=chi, kwargs...)
                     maxcost = max(cost, maxcost)
                 end
                 j -= 2
@@ -104,7 +118,7 @@ function fullupdate(psi::PEPS, H::OpList2d, dt::Number, st::Sitetypes; kwargs...
         iter += 1
         converge = (iter >= maxiter && maxiter != 0) ? true : converge
         if iter % saveiter == 0
-            build!(env, 1, 1, false)
+            buildenv!(1, 1, false)
             maxchi = max(maxchi, maxbonddim(env))
             energy = calculateenergy(psi)
             diff = (energy-lastenergy) / (saveiter * dt)
@@ -119,8 +133,11 @@ function fullupdate(psi::PEPS, H::OpList2d, dt::Number, st::Sitetypes; kwargs...
     return psi, energy
 end
 
+function fullupdate(psi::PEPS, H::OpList2d, dt::Number, st::Sitetypes; kwargs...)
+    return fullupdate(psi, H, dt, st, PEPS[]; kwargs...)
+end
 
-function optimize(env::Environment, gate, site11::Int, site12::Int, dir::Bool; kwargs...)
+function optimize(env::Environment, gate, site11::Int, site12::Int, dir::Bool, projEnvs::Vector{Environment}; kwargs...)
     # Key arguments
     maxiter::Int = get(kwargs, :update_iterations, 10)
     tol::Float64 = get(kwargs, :update_tol, 1e-10)
@@ -134,13 +151,27 @@ function optimize(env::Environment, gate, site11::Int, site12::Int, dir::Bool; k
     #Retrieve relevent tensors
     A1 = env.psi[site11, site12]
     A2 = env.psi[site21, site22]
+    A1projs = Array{}[projEnv.phi[site11, site12] for projEnv = projEnvs]
+    A2projs = Array{}[projEnv.phi[site21, site22] for projEnv = projEnvs]
 
     # Find the reduced tensors
     A1, R1 = reducedtensor(env.psi, site11, site12, !dir ? 4 : 3)
     A2, R2 = reducedtensor(env.psi, site21, site22, !dir ? 1 : 2)
+    R1projs = []
+    R2projs = []
+    for i = 1:length(projEnvs)
+        A1proj, R1proj = reducedtensor(projEnvs[i].phi, site11, site12, !dir ? 4 : 3)
+        A2proj, R2proj = reducedtensor(projEnvs[i].phi, site21, site22, !dir ? 1 : 2)
+        A1projs[i] = A1proj
+        A2projs[i] = A2proj
+        push!(R1projs, R1proj)
+        push!(R2projs, R2proj)
+    end
 
     # Construct the environment for the reduced tensors
     renv = ReducedTensorEnv(env, site11, site12, dir, A1, A2)
+    renvProjs = [ReducedTensorEnv(projEnvs[i], site11, site12, dir, A1projs[i],
+                 A2projs[i]) for i = length(projEnvs)]
 
     # Find the full-updated reduced tensors
     fulltensor = contract(R1, R2, 2, 1)
@@ -152,7 +183,12 @@ function optimize(env::Environment, gate, site11::Int, site12::Int, dir::Bool; k
     normalFull = contract(normalFull, fulltensor, [1, 2, 3, 4], [1, 4, 2, 3])[1]
 
     # Find the cost of the original tensors
-    calculatecost(R1, R2) = real(normalFull + norm(renv, R1, R2) - 2*overlap(renv, R1, R2, fulltensor))
+    function calculatecost(R1, R2)
+        cost = normalFull + norm(renv, R1, R2)
+        cost -= 2*overlap(renv, R1, R2, fulltensor)
+        # Insert cost of projections
+        return real(cost)
+    end
     costoriginal = calculatecost(R1, R2)
 
     # Find initial guesses via svd
