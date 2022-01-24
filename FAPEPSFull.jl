@@ -54,7 +54,7 @@ end
 psi, energy = fullupdate(psi, H, 0.01, sh; maxdim=2, maxiter=10000, miniter=1000, chi=1, saveiter=500)
 psi, energy = fullupdate(psi, H, 0.01, sh; maxdim=3, maxiter=10000, miniter=1000, chi=1, saveiter=500)
 psi, energy = fullupdate(psi, H, 0.01, sh; maxdim=4, maxiter=10000, miniter=1000, chi=1, saveiter=500)
-psi, energy = fullupdate(psi, H, 0.001, sh; maxdim=4, maxiter=1000, miniter=200, chi=4, dropoff=1, saveiter=100)
+psi, energy = fullupdate(psi, H, 0.001, sh; maxdim=4, maxiter=1000, miniter=200, chi=4, saveiter=100)
 end
 
 # Measure occupations
