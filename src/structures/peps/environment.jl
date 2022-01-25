@@ -487,7 +487,6 @@ function ReducedTensorEnv(env::Environment, site1, site2, dir, A1, A2)
         right = contract(M3, right, [2, 3, 4], [1, 3, 6])
     end
     prod = contract(left, right, [1, 4], [1, 4])
-    #return prod
 
     # Find the closest semi-positive hermitian
     dims = size(prod)
@@ -524,4 +523,64 @@ function ReducedTensorEnv(env::Environment, site1, site2, dir, A1, A2)
     #sum(abs.(prod-prod2)) > 1e-5 && println(sum(abs.(prod-prod2)))
     #sum(abs.(prod-prod2)) > 1e-5 && println(F.values)
     return real(prod2)
+end
+
+function ReducedTensorSingleEnv(env::Environment, site1, site2, dir, A1, A2)
+    # Determine which centers and the sites
+    if !dir
+        center = site1
+        center2 = site2
+        site11 = site1
+        site12 = site2
+        site21 = site1
+        site22 = site2 + 1
+    else
+        center = site2
+        center2 = site1
+        site11 = site1
+        site12 = site2
+        site21 = site1 + 1
+        site22 = site2
+    end
+
+    # Retrieve relevent MPS blocks and tensors
+    left = block2(env, center2-1)
+    right = block2(env, center2+2)
+    M1 = block(env, center-1)[center2]
+    M2 = block(env, center+1)[center2]
+    M3 = block(env, center-1)[center2+1]
+    M4 = block(env, center+1)[center2+1]
+    B1 = env.psi[site11, site12]
+    B2 = env.psi[site21, site22]
+
+    # Contract to reduced tensor environment
+    if !dir
+        # Grow the left block
+        left = contract(left, M1, 1, 1)
+        left = contract(left, conj(B1), [1, 4], [1, 2])
+        left = contract(left, A1, [1, 3], [1, 2])
+        left = contract(left, M2, [1, 3, 6], [1, 2, 3])
+
+        # Grow the right block
+        right = contract(M4, right, 4, 4)
+        right = contract(A2, right, [3, 4], [3, 6])
+        right = contract(conj(B2), right, [3, 4], [4, 6])
+        right = contract(M3, right, [2, 3, 4], [2, 5, 7])
+    else
+        # Grow the left block
+        left = contract(left, M1, 1, 1)
+        left = contract(left, conj(B1), [1, 4], [2, 1])
+        left = contract(left, A1, [1, 3], [2, 1])
+        left = contract(left, M2, [1, 4, 7], [1, 2, 3])
+
+        # Grow the right block
+        right = contract(M4, right, 4, 4)
+        right = contract(A2, right, [3, 4], [6, 3])
+        right = contract(conj(B2), right, [3, 4], [6, 4])
+        right = contract(M3, right, [2, 3, 4], [1, 4, 7])
+    end
+    prod = contract(left, right, [1, 2, 5], [1, 2, 5])
+
+
+    return prod
 end

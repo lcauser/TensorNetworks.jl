@@ -2,7 +2,7 @@ include("src/TensorNetworks.jl")
 
 N = 6
 c = 0.5
-s = 0.0354813
+s = -1.0
 dt = 0.01
 maxdim = 3
 cutoff = 0
@@ -49,10 +49,10 @@ states = [["s" for i = 1:N] for j = 1:N]
 states[1][1] = "up"
 states[N][N] = "s"
 psi = productPEPS(sh, states)
-psi, energy = fullupdate(psi, H, 0.1, sh, [zero]; maxdim=1, maxiter=10000, miniter=100, chi=1, saveiter=100)
+psi, energy = fullupdate(psi, H, 0.1, sh; maxdim=1, maxiter=10000, miniter=100, chi=1, saveiter=100)
 
 
-psi, energy = fullupdate(psi, H, 0.1, sh; maxdim=2, maxiter=500, miniter=100, chi=1, chieval=16, saveiter=500, update_tol=1e-7)
+psi, energy = fullupdate(psi, H, 0.1, sh maxdim=2, maxiter=500, miniter=100, chi=1, chieval=16, saveiter=500, update_tol=1e-7)
 
 if s > 0
     states = [["dn" for i = 1:N] for j = 1:N]

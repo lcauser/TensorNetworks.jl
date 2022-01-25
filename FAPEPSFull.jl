@@ -2,7 +2,7 @@ include("src/TensorNetworks.jl")
 
 N = 6
 c = 0.5
-s = -0.1
+s = 0.1
 dt = 0.01
 maxdim = 3
 cutoff = 0
@@ -30,32 +30,35 @@ for i = 1:N
     end
 end
 
-# Initial states
-@time begin
+# Initiate spin half
 sh = spinhalf()
+
+# Create zero state
+states = [["dn" for i = 1:N] for j = 1:N]
+zero = productPEPS(sh, states)
+
+@time begin
+# Initial states
 states = [["s" for i = 1:N] for j = 1:N]
-states[1][1] = "up"
-states[N][N] = "s"
 psi = productPEPS(sh, states)
 psi, energy = fullupdate(psi, H, 0.1, sh; maxdim=1, maxiter=10000, miniter=100, chi=1, saveiter=100)
-psi, energy = fullupdate(psi, H, 0.1, sh; maxdim=2, maxiter=500, miniter=100, chi=1, chieval=16, saveiter=500, update_tol=1e-7)
-
+psi, energy = fullupdate(psi, H, 0.1, sh; maxdim=2, maxiter=200, miniter=100, chi=1, chieval=16, saveiter=100, update_tol=1e-7)
 if s > 0
     states = [["dn" for i = 1:N] for j = 1:N]
     states[1][1] = "up"
-    states[N][N] = "s"
     psi2 = productPEPS(sh, states)
     psi2, energy2 = fullupdate(psi2, H, 0.1, sh; maxdim=1, maxiter=10000, miniter=100, chi=1, saveiter=100)
-    psi2, energy2 = fullupdate(psi2, H, 0.1, sh; maxdim=2, maxiter=500, miniter=100, chi=1, chieval=16, saveiter=500, update_tol=1e-7)
+    psi2, energy2 = fullupdate(psi2, H, 0.1, sh; maxdim=2, maxiter=200, miniter=100, chi=1, chieval=16, saveiter=10, update_tol=1e-7)
     psi = energy2 > energy ? psi2 : psi
 end
 
 # Evolve fully
-psi, energy = fullupdate(psi, H, 0.01, sh; maxdim=2, maxiter=10000, miniter=1000, chi=1, saveiter=500)
-psi, energy = fullupdate(psi, H, 0.01, sh; maxdim=3, maxiter=10000, miniter=1000, chi=1, saveiter=500)
-psi, energy = fullupdate(psi, H, 0.01, sh; maxdim=4, maxiter=10000, miniter=1000, chi=1, saveiter=500)
-psi, energy = fullupdate(psi, H, 0.001, sh; maxdim=4, maxiter=1000, miniter=200, chi=4, saveiter=100)
+psi, energy = fullupdate(psi, H, 0.01, sh, [zero]; maxdim=2, maxiter=10000, miniter=200, chi=1, saveiter=100)
+psi, energy = fullupdate(psi, H, 0.01, sh, [zero]; maxdim=3, maxiter=10000, miniter=200, chi=1, saveiter=100)
+psi, energy = fullupdate(psi, H, 0.01, sh, [zero]; maxdim=4, maxiter=10000, miniter=200, chi=1, saveiter=100)
+psi, energy = fullupdate(psi, H, 0.001, sh, [zero]; maxdim=4, maxiter=1000, miniter=200, chi=16, saveiter=100)
 end
+
 
 # Measure occupations
 ns = OpList2d(N)
