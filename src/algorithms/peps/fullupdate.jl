@@ -147,12 +147,6 @@ function optimize(env::Environment, gate, site11::Int, site12::Int, dir::Bool, p
     site21 = site11 + dir
     site22 = site12 + !dir
 
-    #Retrieve relevent tensors
-    #A1 = env.psi[site11, site12]
-    #A2 = env.psi[site21, site22]
-    #A1projs = Array{}[projEnv.psi[site11, site12] for projEnv = projEnvs]
-    #A2projs = Array{}[projEnv.psi[site21, site22] for projEnv = projEnvs]
-
     # Find the reduced tensors
     A1, R1 = reducedtensor(env.psi, site11, site12, !dir ? 4 : 3)
     A2, R2 = reducedtensor(env.psi, site21, site22, !dir ? 1 : 2)
