@@ -10,6 +10,7 @@ function fullupdate(psi::PEPS, H::OpList2d, dt::Number, st::Sitetypes, projector
     N = length(psi)
     chi = get(kwargs, :chi, maxdim^2)
     chieval = get(kwargs, :chi_evaluate, 100)
+    chiproj::Int = get(kwargs, :chi_proj, maxdim)
     dropoff::Int = get(kwargs, :dropoff, 0)
 
     # Create the gates
@@ -17,9 +18,7 @@ function fullupdate(psi::PEPS, H::OpList2d, dt::Number, st::Sitetypes, projector
 
     # Create the environment
     env = Environment(psi, psi; chi=chi, dropoff=dropoff)
-    projEnvs = [Environment(psi, proj; chi=chi, dropoff=dropoff) for proj = projectors]
-
-    # Function to build all environments
+    projEnvs = [Environment(proj, psi; chi=chiproj) for proj = projectors]
 
 
     # Measure energies
@@ -148,30 +147,13 @@ function optimize(env::Environment, gate, site11::Int, site12::Int, dir::Bool, p
     site21 = site11 + dir
     site22 = site12 + !dir
 
-    #Retrieve relevent tensors
-    A1 = env.psi[site11, site12]
-    A2 = env.psi[site21, site22]
-    A1projs = Array{}[projEnv.phi[site11, site12] for projEnv = projEnvs]
-    A2projs = Array{}[projEnv.phi[site21, site22] for projEnv = projEnvs]
-
     # Find the reduced tensors
     A1, R1 = reducedtensor(env.psi, site11, site12, !dir ? 4 : 3)
     A2, R2 = reducedtensor(env.psi, site21, site22, !dir ? 1 : 2)
-    R1projs = []
-    R2projs = []
-    for i = 1:length(projEnvs)
-        A1proj, R1proj = reducedtensor(projEnvs[i].phi, site11, site12, !dir ? 4 : 3)
-        A2proj, R2proj = reducedtensor(projEnvs[i].phi, site21, site22, !dir ? 1 : 2)
-        A1projs[i] = A1proj
-        A2projs[i] = A2proj
-        push!(R1projs, R1proj)
-        push!(R2projs, R2proj)
-    end
 
     # Construct the environment for the reduced tensors
     renv = ReducedTensorEnv(env, site11, site12, dir, A1, A2)
-    renvProjs = [ReducedTensorEnv(projEnvs[i], site11, site12, dir, A1projs[i],
-                 A2projs[i]) for i = length(projEnvs)]
+    renvProjs = [ReducedTensorSingleEnv(projEnvs[i], site11, site12, dir, A1, A2) for i = 1:length(projEnvs)]
 
     # Find the full-updated reduced tensors
     fulltensor = contract(R1, R2, 2, 1)
@@ -186,7 +168,9 @@ function optimize(env::Environment, gate, site11::Int, site12::Int, dir::Bool, p
     function calculatecost(R1, R2)
         cost = normalFull + norm(renv, R1, R2)
         cost -= 2*overlap(renv, R1, R2, fulltensor)
-        # Insert cost of projections
+        for i = 1:length(projEnvs)
+            cost += overlapproj(renvProjs[i], R1, R2)
+        end
         return real(cost)
     end
     costoriginal = calculatecost(R1, R2)
@@ -211,8 +195,7 @@ function optimize(env::Environment, gate, site11::Int, site12::Int, dir::Bool, p
     # Do an alternating least squares scheme
     cost = deepcopy(costsvd)
     converge = cost < tol
-    converge = false
-    converge = maxdim == 1 ? true : converge
+    converge = (maxdim == 1 && length(projEnvs) == 0) ? true : converge
     iters = 0
     D = size(R1)[2]
     costs = [cost]
@@ -228,15 +211,36 @@ function optimize(env::Environment, gate, site11::Int, site12::Int, dir::Bool, p
                 R1 = moveidx(R1, 3, 2)
             end
 
-            # Calculate effecitve dot
+            # Calculate effecitvenorm
             Neff = effectivenorm(renv, R1, R2, site)
-            normeff(x) = site ? contractnorm(Neff, R1, x, site) : contractnorm(Neff, x, R2, site)
+            Projeffs = [effectiveproj(renvProjs[i], R1, R2, site) for i = 1:length(projEnvs)]
+
+            # Define the cost matrix
+            function normeff(x)
+                if site
+                    f = contractnorm(Neff, R1, x, site)
+                    for i = 1:length(projEnvs)
+                        f += contractproj(Projeffs[i], R1, x, site)
+                    end
+                else
+                    f = contractnorm(Neff, x, R2, site)
+                    for i = 1:length(projEnvs)
+                        f += contractproj(Projeffs[i], x, R2, site)
+                    end
+                end
+                return f
+            end
+
+            # Calculate the effective dot
             doteff = effectivedot(renv, site ? R1 : R2, fulltensor, site)
 
             # Optimize the site
-            R, info = linsolve(normeff, doteff, site ? R2 : R1)
-            R1 = site ? R1 : R
-            R2 = site ? R : R2
+            try
+                R, info = linsolve(normeff, doteff, site ? R2 : R1)
+                R1 = site ? R1 : R
+                R2 = site ? R : R2
+            catch e
+            end
         end
 
         # Check convergence
@@ -259,15 +263,22 @@ function optimize(env::Environment, gate, site11::Int, site12::Int, dir::Bool, p
     end
 
     # Decide to use SVD or ALS
-    if costsvd < cost
+    normal = norm(renv, R1, R2)
+    if costsvd < cost || real(normal) < 1e-16
         R1 = R1svd
         R2 = R2svd
         cost = costsvd
+        normal = norm(renv, R1, R2)
     end
 
     # Renormalize tensors
-    if costoriginal >= cost
-        normal = norm(renv, R1, R2)
+    if costoriginal >= cost && real(normal) > 1e-16
+        #println("----")
+        #println(costoriginal)
+        #println(costsvd)
+        #println(cost)
+        #println(overlapproj(renvProjs[1], R1, R2))
+        #println(normal)
         R1, R = qr(R1, 2)
         L, R2 = lq(R2, 1)
         R = contract(R, L, 2, 1)
@@ -330,6 +341,32 @@ function effectivenorm(renv, R1, R2, site::Bool)
     return prod
 end
 
+function effectiveproj(renv, R1, R2, site::Bool)
+    if site == true
+        # second site
+        prod = contract(renv, R1, [1, 2], [3, 1])
+        prod = moveidx(prod, 1, 3)
+        prod = moveidx(prod, 1, 2)
+    else
+        # first site
+        prod = contract(R2, renv, [2, 3], [4, 3])
+        prod = moveidx(prod, 3, 2)
+        prod = moveidx(prod, 1, 2)
+    end
+    return prod
+end
+
+function contractproj(proj, R1, R2, site::Bool)
+    prod = contract(proj, site ? R2 : R1, [1, 2, 3], [1, 2, 3])[1]
+    prod = prod * conj(proj)
+    return prod
+end
+
+function overlapproj(renv, R1, R2)
+    prod = contract(renv, R1, [1, 2], [3, 1])
+    prod = contract(prod, R2, [1, 2, 3], [3, 2, 1])[1]
+    return prod*conj(prod)
+end
 
 function inversenorm(renv, R1, R2, site::Bool)
     Dprime1, D1, d = size(R1)
