@@ -227,6 +227,11 @@ function inner(O1::MPO, psi::MPS, O2::MPO, phi::MPS)
 end
 
 
+"""
+    trace(O::MPO)
+
+Determine the trace of an MPO.
+"""
 function trace(O::MPO)
     prod = ones(1)
     for i = 1:length(O)
@@ -236,6 +241,11 @@ function trace(O::MPO)
     return prod[1]
 end
 
+"""
+    trace(O1::MPO, O2::MPO)
+
+Determine the trace of MPO products.
+"""
 function trace(O1::MPO, O2::MPO)
     prod = ones((1, 1))
     for i = 1:length(O1)
@@ -331,6 +341,30 @@ function expand!(O::MPO, dim::Int, noise=1e-3)
     O.center = 0
     movecenter!(O, center)
 end
+
+
+### Add MPOs
+"""
+    addMPOs(O1::MPO, O2::MPO; kwargs...)
+
+Add two MPOs and apply SVD to truncate.
+"""
+function addMPOs(O1::MPO, O2::MPO; kwargs...)
+
+end
+
+
+### Automatically construct MPOs from operator lists.
+"""
+    MPO(H::OpList, st::Sitetypes; kwargs...)
+
+Constructs an MPO from an operator list by sequentially adding terms and
+applying SVD.
+"""
+function MPO(H::OpList, st::Sitetypes; kwargs...)
+
+end
+
 
 ### Save and write
 function HDF5.write(parent::Union{HDF5.File, HDF5.Group}, name::AbstractString,

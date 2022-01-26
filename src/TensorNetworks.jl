@@ -48,6 +48,7 @@ include("algorithms/mps/dmrgx.jl")
 include("algorithms/mps/tebd.jl")
 include("algorithms/mps/qjmc.jl")
 include("lattices/qkcms.jl")
+include("algorithms/mps/mposum.jl")
 
 
 ######################################
