@@ -354,7 +354,7 @@ function addMPOs(O1::MPO, O2::MPO; kwargs...)
 end
 
 
-### Automatically construct MPOs from operator lists.
+### Automatically construct MPOs from operator lists
 """
     MPO(H::OpList, st::Sitetypes; kwargs...)
 
