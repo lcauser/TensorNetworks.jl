@@ -103,9 +103,9 @@ function project(projV::ProjMPS, A, direction::Bool = 0, nsites::Int = 2)
         prod2 = moveidx(prod2, 1, -1)
         for i = 1:nsites
             B = conj(projV.phi[site - 1 + i])
-            prod2 = contract(prod2, B, [length(size(prod)), 1], [1, 2])
+            prod2 = contract(prod2, B, [length(size(prod2)), 1], [1, 2])
         end
-        prod2 = contract(prod2, right, [1, 2], [2, 2])
+        prod2 = contract(prod2, right, [1, 2], [2, 1])
         prod *= conj(prod2[1])
     end
 
@@ -133,4 +133,28 @@ function calculate(projV::ProjMPS)
         return prod[1]*conj(prod[1])
     end
     return projV.coeff*prod[1]
+end
+
+
+function overlap(projV::ProjMPS, A, direction::Bool = 0, nsites::Int = 2)
+    # Determine the site
+    site = direction ? projV.center - nsites + 1 : projV.center
+
+    # Get the blocks
+    left = block(projV, site - 1)
+    right = block(projV, site + nsites)
+
+    # Loop through taking the product
+    prod = contract(left, A, 2, 1)
+    prod = moveidx(prod, 1, -1)
+    for i = 1:nsites
+        B = conj(projV.phi[site - 1 + i])
+        prod = contract(prod, B, [length(size(prod)), 1], [1, 2])
+    end
+    prod = contract(prod, right, [1, 2], [2, 1])[1]
+    if projV.squared
+        prod = conj(prod) * prod
+    end
+
+    return projV.coeff*prod
 end
