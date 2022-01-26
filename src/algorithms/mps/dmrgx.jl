@@ -111,18 +111,18 @@ function dmrgx(psi::MPS, Hs::ProjMPSSum; kwargs...)
 end
 
 """
-    dmrg(psi0::MPS, H::MPO; kwargs...)
-    dmrg(psi0::MPS, Hs::Vector{MPO}; kwargs...)
-    dmrg(psi0::MPS, H::MPO, V::MPS; kwargs...)
-    dmrg(psi0::MPS, Hs::Vector{MPO}, Vs::Vector{MPS}; kwargs...)
+    dmrgx(psi0::MPS, H::MPO; kwargs...)
+    dmrgx(psi0::MPS, Hs::Vector{MPO}; kwargs...)
+    dmrgx(psi0::MPS, H::MPO, V::MPS; kwargs...)
+    dmrgx(psi0::MPS, Hs::Vector{MPO}, Vs::Vector{MPS}; kwargs...)
 
-Perform DMRG calculations with an MPO, or list of MPOs, and project out
-vectors.
+Perform DMRG-X calculations with an MPO, or list of MPOs, and project out
+vectors. It calculates all the eigenvectors and eigenvalues of some effective
+Hamiltonian, and picks the one with most overlap with the current state as an
+update.
 
 Key arguments:
     - nsites::Int : Number of sites to optimize over. Default is 2.
-    - krylovdim::Int : Number of krylov vectors to create. Default is 3.
-    - kryloviter::Int : Number of krylov iterations. Default is 1.
     - minsweeps::Int : Minimum number of DMRG sweeps to perform. Default is 1.
     - maxsweeps::Int : Maximum number of DMRG sweeps to perform. Use 0 for
         unlimited. Default is 1000.
