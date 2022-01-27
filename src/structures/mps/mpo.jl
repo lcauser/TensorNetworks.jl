@@ -143,6 +143,7 @@ a direction to move the gauge.
 function replacesites!(O::MPO, A, site::Int, direction::Bool = false; kwargs...)
     # Determine the number of sites
     nsites = Int(round((length(size(A)) - 2) / 2))
+    balance::Bool = get(kwargs, :balance, false)
 
     # Deal with case of just one site
     if nsites == 1
@@ -167,7 +168,12 @@ function replacesites!(O::MPO, A, site::Int, direction::Bool = false; kwargs...)
 
             # Apply SVD and determine the tensors
             U, S, V = svd(U, -1; kwargs...)
-            U = contract(U, S, length(size(U)), 1)
+            if !balance
+                U = contract(U, S, length(size(U)), 1)
+            else
+                U = contract(U, sqrt.(S), length(size(U)), 1)
+                V = contract(sqrt.(S), V, 2, 1)
+            end
             D = site1 == length(O) ? 1 : size(O[site1+1])[1]
             V = reshape(V, (size(S)[2], dim(O), dim(O), D))
 
@@ -183,7 +189,12 @@ function replacesites!(O::MPO, A, site::Int, direction::Bool = false; kwargs...)
 
             # Apply SVD and determine the tensors
             U, S, V = svd(U, -1; kwargs...)
-            U = contract(U, S, length(size(U)), 1)
+            if !balance
+                U = contract(U, S, length(size(U)), 1)
+            else
+                U = contract(U, sqrt.(S), length(size(U)), 1)
+                V = contract(sqrt.(S), V, 2, 1)
+            end
             U = moveidx(U, length(size(U)), 1)
             D = site1 == 1 ? 1 : size(O[site1-1])[4]
             V = reshape(V, (size(S)[2], D, dim(O), dim(O)))
@@ -197,7 +208,9 @@ function replacesites!(O::MPO, A, site::Int, direction::Bool = false; kwargs...)
     # Update the final site
     site1 = direction ? site : site + nsites - 1
     O[site1] = U
-    O.center = site1
+    if !balance
+        O.center = site1
+    end
     return nothing
 end
 
@@ -487,7 +500,6 @@ function addMPOs(O1::MPO, O2::MPO; kwargs...)
     O.center = 1
     movecenter!(O, N)
     movecenter!(O, 1; kwargs...)
-    movecenter!(O, N; kwargs...)
     return O
 end
 +(O1::MPO, O2::MPO) = addMPOs(O1, O2; cutoff=1e-16)

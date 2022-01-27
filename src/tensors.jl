@@ -128,8 +128,8 @@ function svd(x, idx::Int; kwargs...)
     # Assign SVD to individiual matrices
     U = t.U
     S = t.S
-    println("-------")
-    println(S.^2)
+    #println("-------")
+    #println(S)
     V = t.Vt
 
     # Determine the number of singular values to keep
@@ -152,6 +152,7 @@ function svd(x, idx::Int; kwargs...)
     U = U[:, 1:vals]
     S = diagm(S[1:vals])
     V = V[1:vals, :]
+    #println(S)
 
     # Ungroup indexs
     U = moveidx(U, 2, 1)

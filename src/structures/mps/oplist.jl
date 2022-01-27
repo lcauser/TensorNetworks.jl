@@ -260,37 +260,48 @@ applying SVD.
 """
 function MPO(H::OpList, st::Sitetypes; kwargs...)
     # Truncation information
-    cutoff::Float64 = get(kwargs, :cutoff, 1e-12)
+    cutoff::Float64 = get(kwargs, :cutoff, 1e-15)
     maxdim::Int = get(kwargs, :maxdim, 0)
     mindim::Int = get(kwargs, :mindim, 1)
 
-    # Fetch information
-    d = st.dim
+    # System properties
     N = length(H)
+    d = st.dim
 
-    # Create empty MPO
-    O = MPO(d, N)
+    # Information to store where the operator should be placed
+    siteops = [[] for i = 1:N]
+    sitepos = [[] for i = 1:N]
+    siteends = [[] for i = 1:N]
+    sitecoeffs = [[] for i = 1:N]
 
-    for i = 1:length(H.ops)
-        # Fetch operator info
-        ops = H.ops[i]
-        sites = H.sites[i]
-        coeff = H.coeffs[i]
+    # Loop through each site
+    for i = 1:N
+        # Store local terms
+        singleterm = zeros(d, d)
 
-        # Create full operator list
-        opers = String[]
-        for j = 1:N
-            op = j in sites ? ops[argmax([j == site for site = sites])] : "id"
-            push!(opers, op)
+        # Find all operator terms which start at the site
+        idxs = siteindexs(H, i)
+        for idx in idxs
+            ops = H.ops[idx]
+            sites = H.sites[idx]
+            coeff = H.coeff[idx]
+            rng = sites[end] - sites[1] + 1
+            if rng == 1
+                singleterm += coeff*op(sh, ops[1])
+            else
+                # Loop through the range
+                for j = 1:rng
+                    site = i + j - 1
+                    op = site in sites ? ops[argmax(s - site == 0 for s = sites)] : "id"
+                    push!(siteops[site], op)
+                    push!(sitepos[site], j)
+                    push!(siteends[site], j == rng)
+                    push!(sitecoeffs[site], j == 1 ? coeff, 1)
+                end
+            end
         end
 
-        # Create MPO and add
-        O2 = productMPO(st, opers)
-        O2[sites[1]] *= coeff
-        println(i)
-        O = addMPOs(O, O2; cutoff=cutoff, maxdim=maxdim, mindim=mindim)
-        println([bonddim(O, i) for i = 1:N-1])
+        
     end
-
     return O
 end
