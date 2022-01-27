@@ -40,6 +40,7 @@ include("structures/mps/projmpo.jl")
 include("structures/mps/projmpssum.jl")
 include("structures/mps/gatelist.jl")
 
+
 ######################################
 # MPS algorithms
 include("algorithms/mps/vmps.jl")
@@ -48,7 +49,6 @@ include("algorithms/mps/dmrgx.jl")
 include("algorithms/mps/tebd.jl")
 include("algorithms/mps/qjmc.jl")
 include("lattices/qkcms.jl")
-include("algorithms/mps/mposum.jl")
 
 
 ######################################

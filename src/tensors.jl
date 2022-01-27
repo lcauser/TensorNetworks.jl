@@ -128,6 +128,8 @@ function svd(x, idx::Int; kwargs...)
     # Assign SVD to individiual matrices
     U = t.U
     S = t.S
+    println("-------")
+    println(S.^2)
     V = t.Vt
 
     # Determine the number of singular values to keep

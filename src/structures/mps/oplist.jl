@@ -249,3 +249,48 @@ function applyop!(psi::MPS, st::Sitetypes, ops, sites, coeff::Number=1)
         psi[sites[i]] = A
     end
 end
+
+
+### Automatically construct MPOs from operator lists
+"""
+    MPO(H::OpList, st::Sitetypes; kwargs...)
+
+Constructs an MPO from an operator list by sequentially adding terms and
+applying SVD.
+"""
+function MPO(H::OpList, st::Sitetypes; kwargs...)
+    # Truncation information
+    cutoff::Float64 = get(kwargs, :cutoff, 1e-12)
+    maxdim::Int = get(kwargs, :maxdim, 0)
+    mindim::Int = get(kwargs, :mindim, 1)
+
+    # Fetch information
+    d = st.dim
+    N = length(H)
+
+    # Create empty MPO
+    O = MPO(d, N)
+
+    for i = 1:length(H.ops)
+        # Fetch operator info
+        ops = H.ops[i]
+        sites = H.sites[i]
+        coeff = H.coeffs[i]
+
+        # Create full operator list
+        opers = String[]
+        for j = 1:N
+            op = j in sites ? ops[argmax([j == site for site = sites])] : "id"
+            push!(opers, op)
+        end
+
+        # Create MPO and add
+        O2 = productMPO(st, opers)
+        O2[sites[1]] *= coeff
+        println(i)
+        O = addMPOs(O, O2; cutoff=cutoff, maxdim=maxdim, mindim=mindim)
+        println([bonddim(O, i) for i = 1:N-1])
+    end
+
+    return O
+end
