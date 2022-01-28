@@ -1,7 +1,7 @@
 include("src/TensorNetworks.jl")
 
 # Model parameters
-N = 10
+N = 100
 s = -1.0
 c = 0.5
 

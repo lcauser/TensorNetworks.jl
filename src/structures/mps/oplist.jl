@@ -252,12 +252,7 @@ end
 
 
 ### Automatically construct MPOs from operator lists
-"""
-    MPO(H::OpList, st::Sitetypes; kwargs...)
 
-Constructs an MPO from an operator list by sequentially adding terms and
-applying SVD.
-"""
 function MPO(H::OpList, st::Sitetypes; kwargs...)
     # Truncation information
     cutoff::Float64 = get(kwargs, :cutoff, 1e-15)
@@ -268,40 +263,80 @@ function MPO(H::OpList, st::Sitetypes; kwargs...)
     N = length(H)
     d = st.dim
 
-    # Information to store where the operator should be placed
-    siteops = [[] for i = 1:N]
-    sitepos = [[] for i = 1:N]
-    siteends = [[] for i = 1:N]
-    sitecoeffs = [[] for i = 1:N]
+    # Create empty MPO
+    ten = zeros(ComplexF64, (2, d, d, 2))
+    ten[1, :, :, 1] = op(st, "id")
+    ten[2, :, :, 2] = op(st, "id")
+    O = MPO(d, N)
+    O[1] = deepcopy(ten[1:1, :, :, 1:2])
+    for i = 2:N-1
+        O[i] = deepcopy(ten[1:2, :, :, 1:2])
+    end
+    O[N] = deepcopy(ten[1:2, :, :, 2:2])
 
-    # Loop through each site
-    for i = 1:N
-        # Store local terms
-        singleterm = zeros(d, d)
+    # Loop through each term and determine the site range
+    maxrng = siterange(H)
+    rngs = [[] for i = 1:maxrng]
+    for i = 1:length(H.ops)
+        rng = H.sites[i][end] - H.sites[i][1] + 1
+        push!(rngs[rng], i)
+    end
 
-        # Find all operator terms which start at the site
-        idxs = siteindexs(H, i)
-        for idx in idxs
-            ops = H.ops[idx]
-            sites = H.sites[idx]
-            coeff = H.coeff[idx]
-            rng = sites[end] - sites[1] + 1
-            if rng == 1
-                singleterm += coeff*op(sh, ops[1])
-            else
-                # Loop through the range
-                for j = 1:rng
-                    site = i + j - 1
-                    op = site in sites ? ops[argmax(s - site == 0 for s = sites)] : "id"
-                    push!(siteops[site], op)
-                    push!(sitepos[site], j)
-                    push!(siteends[site], j == rng)
-                    push!(sitecoeffs[site], j == 1 ? coeff, 1)
+    # Loop through all the possible ranges of interactions
+    for i = 1:maxrng
+        # Loop through sites
+        nextterms = []
+        for site = 1:N
+            # Find all the terms which start at the site
+            idxs = []
+            for j = rngs[i]
+                if H.sites[j][1] == site
+                    push!(idxs, j)
                 end
             end
-        end
 
-        
+            if i == 1
+                # Just adding to top right corner
+                for idx in idxs
+                    O[site][1, :, :, end] += H.coeffs[idx]*op(st, H.ops[idx][1])
+                end
+            else
+                # Expand the tensor to account for all terms
+                println("-----")
+                O[site] = expand(O[site], length(nextterms), length(idxs))
+
+                # Add the terms
+                nextterms2 = []
+                for j = 1:length(idxs)
+                    O[site][1, :, :, 1+j] = H.coeffs[idxs[j]]*op(st, H.ops[idxs[j]][1])
+                    push!(nextterms2, H.ops[idxs[j]][2])
+                end
+                for j = 1:length(nextterms)
+                    O[site][1+j, :, :, end] = op(st, nextterms[j])
+                end
+                nextterms = nextterms2
+            end
+        end
+    end
+
+    # Apply SVD in an attempt to reduce the bond dimension
+    for site = 1:N-1
+        M = O[site]
+        U, S, V = svd(M, 4; cutoff=cutoff, maxdim=maxdim, mindim=mindim)
+        M = contract(U, S, 4, 1)
+        O[site] = M
+        O[site+1] = contract(V, O[site+1], 2, 1)
     end
     return O
+end
+
+
+function expand(O::Array{}, D1, D2)
+    dims = size(O)
+    newO = zeros(ComplexF64, (dims[1]+D1, dims[2], dims[3], dims[4]+D2))
+    d1 = dims[1] == 1 ? 1 : dims[1]-1
+    newO[1:d1, :, :, 1:dims[4]-1] = O[1:d1, :, :, 1:dims[4]-1]
+    newO[1:d1, :, :, end] = O[1:d1, :, :, end]
+    newO[dims[1]+D1, :, :, dims[4]+D2] = O[dims[1], :, :, dims[4]]
+    return newO
 end
