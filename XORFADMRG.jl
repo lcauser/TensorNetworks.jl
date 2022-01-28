@@ -1,7 +1,7 @@
 include("src/TensorNetworks.jl")
 
 # Model parameters
-N = 100
+N = 10
 s = -0.0
 c = 0.5
 
@@ -10,24 +10,31 @@ sh = spinhalf()
 
 # Create hamiltonian
 H = OpList(N)
-add!(H, "x", 1, -exp(-s)*sqrt(c*(1-c)))
-add!(H, "pu", 1, (1-c))
-add!(H, "pd", 1, c)
-for i = 1:N-1
-    add!(H, ["pu", "x"], [i, i+1], -exp(-s)*sqrt(c*(1-c)))
-    add!(H, ["pu", "pu"], [i, i+1], (1-c))
-    add!(H, ["pu", "pd"], [i, i+1], c)
+add!(H, "x", 1, -0.25*exp(-s)*sqrt(c*(1-c)))
+add!(H, "pu", 1, 0.25*(1-c))
+add!(H, "pd", 1, 0.25*c)
+for i = 1:N-2
+    add!(H, ["pu", "x", "pd"], [i, i+1, i+2], -exp(-s)*sqrt(c*(1-c)))
+    add!(H, ["pu", "pu", "pd"], [i, i+1, i+2], (1-c))
+    add!(H, ["pu", "pd", "pd"], [i, i+1, i+2], c)
+    add!(H, ["pd", "x", "pu"], [i, i+1, i+2], -exp(-s)*sqrt(c*(1-c)))
+    add!(H, ["pd", "pu", "pu"], [i, i+1, i+2], (1-c))
+    add!(H, ["pd", "pd", "pu"], [i, i+1, i+2], c)
 end
+add!(H, "x", N, -0.25*exp(-s)*sqrt(c*(1-c)))
+add!(H, "pu", N, 0.25*(1-c))
+add!(H, "pd", N, 0.25*c)
+
+
 println("----")
 H = MPO(H, sh)
 
 # Create initial guess
 psi = productMPS(sh, ["dn" for i = 1:N])
-psi = randomMPS(2, N, 1)
 movecenter!(psi, 1)
 
 # Do DMRG
-@time psi1, energy1 = dmrg(psi, H; maxsweeps=100, cutoff=1e-16, maxdim=4)
+@time psi1, energy1 = dmrg(psi, H; maxsweeps=100, cutoff=1e-16)
 
 # Find excited state
 psi2 = randomMPS(2, N, 1)

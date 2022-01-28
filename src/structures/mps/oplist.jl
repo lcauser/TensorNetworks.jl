@@ -285,7 +285,11 @@ function MPO(H::OpList, st::Sitetypes; kwargs...)
     # Loop through all the possible ranges of interactions
     for i = 1:maxrng
         # Loop through sites
-        nextterms = []
+        nextterms = [[] for j=1:i]
+        coeffs = [[] for j=1:i]
+        ingoings = [[] for j=1:i]
+        outgoings = [[] for j=1:i]
+
         for site = 1:N
             # Find all the terms which start at the site
             idxs = []
@@ -301,20 +305,67 @@ function MPO(H::OpList, st::Sitetypes; kwargs...)
                     O[site][1, :, :, end] += H.coeffs[idx]*op(st, H.ops[idx][1])
                 end
             else
-                # Expand the tensor to account for all terms
-                println("-----")
-                O[site] = expand(O[site], length(nextterms), length(idxs))
-
-                # Add the terms
-                nextterms2 = []
+                # Add new terms starting at this site
                 for j = 1:length(idxs)
-                    O[site][1, :, :, 1+j] = H.coeffs[idxs[j]]*op(st, H.ops[idxs[j]][1])
-                    push!(nextterms2, H.ops[idxs[j]][2])
+                    # Loop through each site in the operator
+                    outgoing = 0
+                    for k = 1:i
+                        # Decide ingoing and outgoing idxs
+                        ingoing = outgoing
+                        for l = 1:length(outgoings[k])+1
+                            outgoing = l
+                            !(outgoing in outgoings[k]) && break
+                        end
+                        outgoing = k == i ? 0 : outgoing
+
+                        # Add to list
+                        push!(nextterms[k], H.ops[idxs[j]][k])
+                        push!(coeffs[k], k == 1 ? H.coeffs[idxs[j]] : 1)
+                        push!(ingoings[k], ingoing)
+                        push!(outgoings[k], outgoing)
+                    end
                 end
-                for j = 1:length(nextterms)
-                    O[site][1+j, :, :, end] = op(st, nextterms[j])
+                println(site)
+                println(nextterms)
+                println(coeffs)
+                println(ingoings)
+                println(outgoings)
+
+
+                # Pull the terms
+                terms = nextterms[1]
+                ins = ingoings[1]
+                outs = outgoings[1]
+                cos = coeffs[1]
+                for j = 1:i-1
+                    nextterms[j] = nextterms[j+1]
+                    ingoings[j] = ingoings[j+1]
+                    outgoings[j] = outgoings[j+1]
+                    coeffs[j] = coeffs[j+1]
                 end
-                nextterms = nextterms2
+                nextterms[i] = []
+                ingoings[i] = []
+                outgoings[i] = []
+                coeffs[i] = []
+
+                # Expand the tensor to account for all terms
+                if length(terms) != 0
+                    ingoinglen = sum([ingoing != 0 for ingoing in ins])
+                    outgoinglen = sum([outgoing != 0 for outgoing in outs])
+                    ingoingsrt = size(O[site])[1] - 1
+                    outgoingsrt = size(O[site])[4] - 1
+                    O[site] = expand(O[site], ingoinglen, outgoinglen)
+
+                    # Add the terms to the tensor
+                    for j = 1:length(terms)
+                        # Find the idxs of each
+                        x = ins[j] == 0 ? 1 : ingoingsrt + ins[j]
+                        y = outs[j] == 0 ? outgoingsrt + 1 + outgoinglen : outgoingsrt + outs[j]
+
+                        # Set the tensor
+                        O[site][x, :, :, y] = cos[j] * op(sh, terms[j])
+                    end
+                end
             end
         end
     end
@@ -326,6 +377,14 @@ function MPO(H::OpList, st::Sitetypes; kwargs...)
         M = contract(U, S, 4, 1)
         O[site] = M
         O[site+1] = contract(V, O[site+1], 2, 1)
+    end
+
+    for site = N:-1:2
+        M = O[site]
+        U, S, V = svd(M, 1; cutoff=cutoff, maxdim=maxdim, mindim=mindim)
+        M = contract(S, U, 2, 1)
+        O[site] = M
+        O[site-1] = contract(O[site-1], V, 4, 2)
     end
     return O
 end
