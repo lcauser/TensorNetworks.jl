@@ -1,5 +1,5 @@
 """
-    PEPS(dim::Int, tensors::Array{Array{ComplexF64, 3}})
+    PEPS(dim::Int, tensors::Array{Array{ComplexF64, 5}})
     PEPS(dim::Int, height::Int, length::Int)
     PEPS(dim::Int, size::Int)
 
@@ -261,47 +261,6 @@ function moveright!(psi::PEPS, i::Int, j::Int)
     end
 end
 
-
-"""
-function movedown!(psi::PEPS, i::Int, j::Int)
-    if i < N && i >=1 && j >= 1 && j <= N
-        Q, R = qr(psi[i, j], 3)
-        psi[i, j] = Q
-        R = contract(R, psi[i+1, j], 2, 2)
-        R = moveidx(R, 1, 2)
-        psi[i+1, j] = R
-    end
-end
-
-function moveup!(psi::PEPS, i::Int, j::Int)
-    if i <= N && i > 1 && j >= 1 && j <= N
-        L, Q = lq(psi[i, j], 2)
-        psi[i, j] = Q
-        L = contract(L, psi[i-1, j], 2, 3)
-        L = moveidx(L, 1, 3)
-        psi[i-1, j] = L
-    end
-end
-
-function moveleft!(psi::PEPS, i::Int, j::Int)
-    if i <= N && i >= 1 && j > 1 && j <= N
-        L, Q = lq(psi[i, j], 1)
-        psi[i, j] = Q
-        L = contract(L, psi[i, j-1], 2, 4)
-        L = moveidx(L, 1, 4)
-        psi[i, j-1] = L
-    end
-end
-
-function moveright!(psi::PEPS, i::Int, j::Int)
-    if i <= N && i >= 1 && j >= 1 && j < N
-        Q, R = qr(psi[i, j], 4)
-        psi[i, j] = Q
-        R = contract(R, psi[i, j+1], 2, 1)
-        psi[i, j+1] = R
-    end
-end
-"""
 
 ### Reduced tensors
 function reducedtensor(psi::PEPS, i::Int, j::Int, axis::Int)
