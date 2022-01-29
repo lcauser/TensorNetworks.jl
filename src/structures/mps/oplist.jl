@@ -307,6 +307,7 @@ function MPO(H::OpList, st::Sitetypes; kwargs...)
             else
                 # Add new terms starting at this site
                 for j = 1:length(idxs)
+                    # Operators idenity!!!
                     # Loop through each site in the operator
                     outgoing = 0
                     for k = 1:i

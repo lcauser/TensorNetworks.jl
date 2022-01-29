@@ -2,7 +2,7 @@ include("src/TensorNetworks.jl")
 
 # Model parameters
 N = 10
-s = -0.0
+s = 1.0
 c = 0.5
 
 # Create lattice type
