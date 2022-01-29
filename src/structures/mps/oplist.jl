@@ -307,7 +307,11 @@ function MPO(H::OpList, st::Sitetypes; kwargs...)
             else
                 # Add new terms starting at this site
                 for j = 1:length(idxs)
-                    # Operators idenity!!!
+                    # Fetch operator information
+                    ops = H.ops[idxs[j]]
+                    sites = H.sites[idxs[j]]
+                    coeff = H.coeffs[idxs[j]]
+
                     # Loop through each site in the operator
                     outgoing = 0
                     for k = 1:i
@@ -319,19 +323,16 @@ function MPO(H::OpList, st::Sitetypes; kwargs...)
                         end
                         outgoing = k == i ? 0 : outgoing
 
+                        # Determine what the operator is
+                        op =  site+k-1 in sites ? ops[argmax([s == site+k-1 for s = sites])] : "id"
+
                         # Add to list
-                        push!(nextterms[k], H.ops[idxs[j]][k])
+                        push!(nextterms[k], op)
                         push!(coeffs[k], k == 1 ? H.coeffs[idxs[j]] : 1)
                         push!(ingoings[k], ingoing)
                         push!(outgoings[k], outgoing)
                     end
                 end
-                println(site)
-                println(nextterms)
-                println(coeffs)
-                println(ingoings)
-                println(outgoings)
-
 
                 # Pull the terms
                 terms = nextterms[1]

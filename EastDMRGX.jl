@@ -39,7 +39,7 @@ psi = productMPS(sh, states)
 movecenter!(psi, 1)
 
 # Do DMRG
-@time psi, energy = dmrg(psi, H; maxsweeps=100, cutoff=1e-16)
+@time psi, energy = dmrgx(psi, H; maxsweeps=100, cutoff=1e-16)
 oplist = OpList(N)
 for i = 1:N
     add!(oplist, ["pu"], [i])

@@ -1,8 +1,8 @@
 include("src/TensorNetworks.jl")
 
 # Model parameters
-N = 6
-s = -0.0
+N = 14
+s = 0.1
 c = 0.5
 
 # Create lattice type
@@ -20,6 +20,9 @@ for i = 1:N
             add!(H, ["pu", "x"], [site1, site2], -exp(-s)*sqrt(c*(1-c)))
             add!(H, ["pu", "pu"], [site1, site2], (1-c))
             add!(H, ["pu", "pd"], [site1, site2], c)
+            println("----")
+            println(site1)
+            println(site2)
         end
 
         if i < N
@@ -39,25 +42,28 @@ println("----")
 H = MPO(H, sh)
 
 # Create initial guess
-psi = productMPS(sh, ["dn" for i = 1:N])
-psi = randomMPS(2, N, 1)
+psi = randomMPS(2, N^2, 1)
 movecenter!(psi, 1)
 
-# Do DMRG
-@time psi1, energy1 = dmrg(psi, H; maxsweeps=100, cutoff=1e-16, maxdim=4)
+# Do DMRG; interactions are "long ranged" so not cutoff, work up to large D
+@time psi, energy = dmrg(psi, H; maxsweeps=100, cutoff=0, maxdim=10)
+@time psi, energy = dmrg(psi, H; maxsweeps=100, cutoff=0, maxdim=100)
+@time psi, energy = dmrg(psi, H; maxsweeps=100, cutoff=0, maxdim=256)
+@time psi, energy = dmrg(psi, H; maxsweeps=100, cutoff=0, maxdim=512)
+@time psi, energy = dmrg(psi, H; maxsweeps=100, cutoff=0, maxdim=1024)
 
-# Find excited state
-psi2 = randomMPS(2, N, 1)
-@time psi1, energy2 = dmrg(psi2, H, psi1; maxsweeps=100, cutoff=1e-16)
-
-# Measure Occupations and Correlations
-oplist = OpList(N)
-for i = 1:N
+# Measure Occupations
+oplist = OpList(N^2)
+for i = 1:N^2
     add!(oplist, ["pu"], [i])
 end
-for i = 1:N-1
-    add!(oplist, ["pu", "pu"], [i, i+1])
+
+expectations = inner(sh, psi, oplist, psi)
+occupations = expectations[1:N^2]
+occs = zeros(Float64, (N, N))
+for i = 1:N
+    for j = 1:N
+        site = isodd(i) ? (i-1)*N + j : i*N - j + 1
+        occs[i, j] = occupations[site]
+    end
 end
-expectations = inner(sh, psi1, oplist, psi1)
-occupations = expectations[1:N]
-correlations = expectations[N+1:end]
