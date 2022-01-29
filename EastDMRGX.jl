@@ -1,8 +1,8 @@
 include("src/TensorNetworks.jl")
 
 # Model parameters
-N = 20
-s = 1.0
+N = 100
+s = -1.0
 c = 0.5
 
 # Create lattice type
@@ -34,7 +34,7 @@ K[1] = M1
 
 # Create initial guess
 states = ["dn" for i = 1:N]
-states[Int(floor(N/2))] = "up"
+#states[Int(floor(N/2))] = "up"
 psi = productMPS(sh, states)
 movecenter!(psi, 1)
 

@@ -132,6 +132,121 @@ function randomMPO(dim::Int, length::Int, bonddim::Int)
     return psi
 end
 
+
+### Replace the sites within a MPS with a contraction of multiple sites
+"""
+    replacesites!(O::MPO, A, site::Int, direction::Bool = false; kwargs...)
+
+Replace the sites from a site onwards, with a contraction of tensors. Specify
+a direction to move the gauge.
+"""
+function replacesites!(O::MPO, A, site::Int, direction::Bool = false; kwargs...)
+    # Determine the number of sites
+    nsites = Int(round((length(size(A)) - 2) / 2))
+    balance::Bool = get(kwargs, :balance, false)
+
+    # Deal with case of just one site
+    if nsites == 1
+        psi[site] = A
+        if 0 < (site + 1 - 2*direction) && (site + 1 - 2*direction) < length(O)
+            movecenter!(O, site + 1 - 2*direction)
+        end
+        return nothing
+    end
+
+    # Repeatidly apply SVD to split the tensors
+    U = A
+    for i = 1:nsites-1
+        if direction
+            ### Sweeping Left
+            # Group together the last three indices
+            U, cmb = combineidxs(U, [length(size(U))-2, length(size(U))-1,
+                                     length(size(U))])
+
+            # Find the next site to update
+            site1 = site+nsites-i
+
+            # Apply SVD and determine the tensors
+            U, S, V = svd(U, -1; kwargs...)
+            if !balance
+                U = contract(U, S, length(size(U)), 1)
+            else
+                U = contract(U, sqrt.(S), length(size(U)), 1)
+                V = contract(sqrt.(S), V, 2, 1)
+            end
+            D = site1 == length(O) ? 1 : size(O[site1+1])[1]
+            V = reshape(V, (size(S)[2], dim(O), dim(O), D))
+
+            # Update tensors
+            O[site1] = V
+        else
+            ### Sweeping right
+            # Combine first three indexs together
+            U, cmb = combineidxs(U, [1, 2, 3])
+
+            # Find the next site to update
+            site1 = site + i - 1
+
+            # Apply SVD and determine the tensors
+            U, S, V = svd(U, -1; kwargs...)
+            if !balance
+                U = contract(U, S, length(size(U)), 1)
+            else
+                U = contract(U, sqrt.(S), length(size(U)), 1)
+                V = contract(sqrt.(S), V, 2, 1)
+            end
+            U = moveidx(U, length(size(U)), 1)
+            D = site1 == 1 ? 1 : size(O[site1-1])[4]
+            V = reshape(V, (size(S)[2], D, dim(O), dim(O)))
+            V = moveidx(V, 1, -1)
+
+            # Update tensors
+            O[site1] = V
+        end
+    end
+
+    # Update the final site
+    site1 = direction ? site : site + nsites - 1
+    O[site1] = U
+    if !balance
+        O.center = site1
+    end
+    return nothing
+end
+
+"""
+    truncatetwo!(O::MPO; kwargs...)
+
+Truncates an MPO by contracting two tensors and applying SVD. Use key arguments:
+    - mindim: minimum bond dimension (default = 1)
+    - maxdim: maximum bond dimension (default = 0, no limit)
+    - cutoff: truncation cutoff error (default = 0)
+"""
+function truncatetwo!(O::MPO; kwargs...)
+    # Move orthogonal center to the edge
+    if (O.center - length(O) / 2) > 0
+        # Move to end
+        movecenter!(O, length(O))
+
+        # Truncate by contracting tensors and using SVD
+        for i = 1:length(O)-1
+            site = length(O) - i
+            A = contract(O[site], O[site+1], 4, 1)
+            replacesites!(O, A, site, true; kwargs...)
+        end
+    else
+        # Move to beginning
+        movecenter!(O, 1)
+
+        # Truncate by contracting tensors and using SVD
+        for site = 1:length(O)-1
+            A = contract(O[site], O[site+1], 4, 1)
+            replacesites!(O, A, site, false; kwargs...)
+        end
+    end
+end
+
+
 ### Products
 """
     applyMPO(O::MPO, psi::MPS, hermitian=false; kwargs...)
@@ -227,6 +342,11 @@ function inner(O1::MPO, psi::MPS, O2::MPO, phi::MPS)
 end
 
 
+"""
+    trace(O::MPO)
+
+Determine the trace of an MPO.
+"""
 function trace(O::MPO)
     prod = ones(1)
     for i = 1:length(O)
@@ -236,6 +356,11 @@ function trace(O::MPO)
     return prod[1]
 end
 
+"""
+    trace(O1::MPO, O2::MPO)
+
+Determine the trace of MPO products.
+"""
 function trace(O1::MPO, O2::MPO)
     prod = ones((1, 1))
     for i = 1:length(O1)
@@ -331,6 +456,54 @@ function expand!(O::MPO, dim::Int, noise=1e-3)
     O.center = 0
     movecenter!(O, center)
 end
+
+
+### Add MPOs
+"""
+    addMPOs(O1::MPO, O2::MPO; kwargs...)
+
+Add two MPOs and apply SVD to truncate.
+"""
+function addMPOs(O1::MPO, O2::MPO; kwargs...)
+    # Fetch information
+    d = dim(O1)
+    N = length(O1)
+
+    # Create empty MPO
+    O = MPO(d, N)
+
+    # Iterative create tensors
+    for i = 1:N
+        dims1 = size(O1[i])
+        dims2 = size(O2[i])
+        D1 = i == 1 ? 1 : dims1[1] + dims2[1]
+        D2 = i == N ? 1 : dims1[4] + dims2[4]
+
+        # Create tensor
+        M = zeros(ComplexF64, (D1, d, d, D2))
+        if i == 1
+            M[1:1, :, :, 1:dims1[4]] = O1[i]
+            M[1:1, :, :, dims1[4]+1:D2] = O2[i]
+        elseif i == N
+            M[1:dims1[1], :, :, 1:1] = O1[i]
+            M[dims1[1]+1:D1, :, :, 1:1] = O2[i]
+        else
+            M[1:dims1[1], :, :, 1:dims1[4]] = O1[i]
+            M[dims1[1]+1:D1, :, :, dims1[4]+1:D2] = O2[i]
+        end
+
+        # Store tensor
+        O[i] = M
+    end
+
+    # Apply SVD
+    O.center = 1
+    movecenter!(O, N)
+    movecenter!(O, 1; kwargs...)
+    return O
+end
++(O1::MPO, O2::MPO) = addMPOs(O1, O2; cutoff=1e-16)
+
 
 ### Save and write
 function HDF5.write(parent::Union{HDF5.File, HDF5.Group}, name::AbstractString,

@@ -249,3 +249,155 @@ function applyop!(psi::MPS, st::Sitetypes, ops, sites, coeff::Number=1)
         psi[sites[i]] = A
     end
 end
+
+
+### Automatically construct MPOs from operator lists
+
+function MPO(H::OpList, st::Sitetypes; kwargs...)
+    # Truncation information
+    cutoff::Float64 = get(kwargs, :cutoff, 1e-15)
+    maxdim::Int = get(kwargs, :maxdim, 0)
+    mindim::Int = get(kwargs, :mindim, 1)
+
+    # System properties
+    N = length(H)
+    d = st.dim
+
+    # Create empty MPO
+    ten = zeros(ComplexF64, (2, d, d, 2))
+    ten[1, :, :, 1] = op(st, "id")
+    ten[2, :, :, 2] = op(st, "id")
+    O = MPO(d, N)
+    O[1] = deepcopy(ten[1:1, :, :, 1:2])
+    for i = 2:N-1
+        O[i] = deepcopy(ten[1:2, :, :, 1:2])
+    end
+    O[N] = deepcopy(ten[1:2, :, :, 2:2])
+
+    # Loop through each term and determine the site range
+    maxrng = siterange(H)
+    rngs = [[] for i = 1:maxrng]
+    for i = 1:length(H.ops)
+        rng = H.sites[i][end] - H.sites[i][1] + 1
+        push!(rngs[rng], i)
+    end
+
+    # Loop through all the possible ranges of interactions
+    for i = 1:maxrng
+        # Loop through sites
+        nextterms = [[] for j=1:i]
+        coeffs = [[] for j=1:i]
+        ingoings = [[] for j=1:i]
+        outgoings = [[] for j=1:i]
+
+        for site = 1:N
+            # Find all the terms which start at the site
+            idxs = []
+            for j = rngs[i]
+                if H.sites[j][1] == site
+                    push!(idxs, j)
+                end
+            end
+
+            if i == 1
+                # Just adding to top right corner
+                for idx in idxs
+                    O[site][1, :, :, end] += H.coeffs[idx]*op(st, H.ops[idx][1])
+                end
+            else
+                # Add new terms starting at this site
+                for j = 1:length(idxs)
+                    # Fetch operator information
+                    ops = H.ops[idxs[j]]
+                    sites = H.sites[idxs[j]]
+                    coeff = H.coeffs[idxs[j]]
+
+                    # Loop through each site in the operator
+                    outgoing = 0
+                    for k = 1:i
+                        # Decide ingoing and outgoing idxs
+                        ingoing = outgoing
+                        for l = 1:length(outgoings[k])+1
+                            outgoing = l
+                            !(outgoing in outgoings[k]) && break
+                        end
+                        outgoing = k == i ? 0 : outgoing
+
+                        # Determine what the operator is
+                        op =  site+k-1 in sites ? ops[argmax([s == site+k-1 for s = sites])] : "id"
+
+                        # Add to list
+                        push!(nextterms[k], op)
+                        push!(coeffs[k], k == 1 ? H.coeffs[idxs[j]] : 1)
+                        push!(ingoings[k], ingoing)
+                        push!(outgoings[k], outgoing)
+                    end
+                end
+
+                # Pull the terms
+                terms = nextterms[1]
+                ins = ingoings[1]
+                outs = outgoings[1]
+                cos = coeffs[1]
+                for j = 1:i-1
+                    nextterms[j] = nextterms[j+1]
+                    ingoings[j] = ingoings[j+1]
+                    outgoings[j] = outgoings[j+1]
+                    coeffs[j] = coeffs[j+1]
+                end
+                nextterms[i] = []
+                ingoings[i] = []
+                outgoings[i] = []
+                coeffs[i] = []
+
+                # Expand the tensor to account for all terms
+                if length(terms) != 0
+                    ingoinglen = sum([ingoing != 0 for ingoing in ins])
+                    outgoinglen = sum([outgoing != 0 for outgoing in outs])
+                    ingoingsrt = size(O[site])[1] - 1
+                    outgoingsrt = size(O[site])[4] - 1
+                    O[site] = expand(O[site], ingoinglen, outgoinglen)
+
+                    # Add the terms to the tensor
+                    for j = 1:length(terms)
+                        # Find the idxs of each
+                        x = ins[j] == 0 ? 1 : ingoingsrt + ins[j]
+                        y = outs[j] == 0 ? outgoingsrt + 1 + outgoinglen : outgoingsrt + outs[j]
+
+                        # Set the tensor
+                        O[site][x, :, :, y] = cos[j] * op(sh, terms[j])
+                    end
+                end
+            end
+        end
+    end
+
+    # Apply SVD in an attempt to reduce the bond dimension
+    for site = 1:N-1
+        M = O[site]
+        U, S, V = svd(M, 4; cutoff=cutoff, maxdim=maxdim, mindim=mindim)
+        M = contract(U, S, 4, 1)
+        O[site] = M
+        O[site+1] = contract(V, O[site+1], 2, 1)
+    end
+
+    for site = N:-1:2
+        M = O[site]
+        U, S, V = svd(M, 1; cutoff=cutoff, maxdim=maxdim, mindim=mindim)
+        M = contract(S, U, 2, 1)
+        O[site] = M
+        O[site-1] = contract(O[site-1], V, 4, 2)
+    end
+    return O
+end
+
+
+function expand(O::Array{}, D1, D2)
+    dims = size(O)
+    newO = zeros(ComplexF64, (dims[1]+D1, dims[2], dims[3], dims[4]+D2))
+    d1 = dims[1] == 1 ? 1 : dims[1]-1
+    newO[1:d1, :, :, 1:dims[4]-1] = O[1:d1, :, :, 1:dims[4]-1]
+    newO[1:d1, :, :, end] = O[1:d1, :, :, end]
+    newO[dims[1]+D1, :, :, dims[4]+D2] = O[dims[1], :, :, dims[4]]
+    return newO
+end
