@@ -18,7 +18,6 @@ for i = 1:N-1
     add!(H, ["pu", "pu"], [i, i+1], (1-c))
     add!(H, ["pu", "pd"], [i, i+1], c)
 end
-println("----")
 H = MPO(H, sh)
 
 # Create initial guess
