@@ -39,7 +39,7 @@ for i = 1:N
 end
 
 println("----")
-H = MPO(H, sh)
+H = MPO(sh, H)
 
 # Create initial guess
 psi = randomMPS(2, N^2, 1)

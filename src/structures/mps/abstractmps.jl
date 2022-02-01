@@ -9,7 +9,7 @@ end
 
 ### Properties of a MPS/MPO
 """
-    eltype(::MPS)
+    eltype(::AbstractMPS)
 
 Return the element type of an MPS.
 """
@@ -17,7 +17,7 @@ eltype(psi::AbstractMPS) = typeof(psi[1])
 
 
 """
-    length(::MPS/MPO)
+    length(::AbstractMPS)
 
 The length of an MPS or MPO.
 """
@@ -25,7 +25,7 @@ length(psi::AbstractMPS) = length(psi.tensors)
 
 
 """
-    dim(::MPS/MPO)
+    dim(::AbstractMPS)
 
 The size of the physical dimensions in an MPS or MPO.
 """
@@ -33,7 +33,15 @@ dim(psi::AbstractMPS) = psi.dim
 
 
 """
-    center(::MPS/MPO)
+    rank(::AbstractMPS)
+
+Return the rank of a GMPS.
+"""
+rank(psi::AbstractMPS) = psi.rank
+
+
+"""
+    center(::AbstractMPS)
 
 The orthogonal center of an MPS or MPO. Returns 0 if not set.
 """
@@ -41,29 +49,28 @@ center(psi::AbstractMPS) = psi.center
 
 
 """
-    tensors(::MPS/MPO)
+    tensors(::AbstractMPS)
 
 Return the tensor within an MPS or MPO
 """
 tensors(psi::AbstractMPS) = psi.tensors
 
 """
-    bonddim(m::MPS, idx::Int)
-    bonddim(m::MPO, idx::Int)
+    bonddim(::AbstractMPS, idx::Int)
 
 Return the bond dimension size between idx and idx + 1. Returns nothing if
 out of range.
 """
 function bonddim(psi::AbstractMPS, site::Int)
-    (site < 1 || site >= length(psi)) && return nothing
-    return size(psi[site])[3]
+    (site < 1 || site > length(psi)) && return nothing
+    return size(psi[site+1])[1]
 end
 
 
 """
-    maxbonddim(::MPS/::MPO)
+    maxbonddim(::AbstractMPS)
 
-Calculate the maximum bond dimension within an MPS or MPO.
+Calculate the maximum bond dimension within an GMPS.
 """
 function maxbonddim(psi::AbstractMPS)
     D = 0
@@ -82,67 +89,10 @@ function Base.show(io::IO, M::AbstractMPS)
 end
 
 
-### Move orthogonal center
-"""
-    movecenter!(psi::MPS, idx::Int; kwargs...)
-
-Move the orthogonal center of an MPS.
-"""
-function movecenter!(psi::AbstractMPS, idx::Int; kwargs...)
-    (idx < 1 || idx > length(psi)) && error("The idx is out of range.")
-    if center(psi) == 0
-        for i = 1:idx-1
-            moveright!(psi, i; kwargs...)
-        end
-        N = length(psi)
-        for i = 1:N-idx
-            moveleft!(psi, N+1-i; kwargs...)
-        end
-    else
-        if idx > center(psi)
-            for i = center(psi):idx-1
-                moveright!(psi, i; kwargs...)
-            end
-        elseif idx < center(psi)
-            for i = 1:center(psi)-idx
-                moveleft!(psi, center(psi)+1-i; kwargs...)
-            end
-        end
-    end
-    psi.center = idx
-end
-
-
-### Truncate
-"""
-    truncate!(psi::AbstractMPS; kwargs...)
-
-Truncate across the MPS. Use key arguments:
-    - mindim: minimum bond dimension (default = 1)
-    - maxdim: maximum bond dimension (default = 0, no limit)
-    - cutoff: truncation cutoff error (default = 0)
-"""
-function truncate!(psi::AbstractMPS; kwargs...)
-    if psi.center != 1 && psi.center != length(psi)
-        movecenter!(psi, 0)
-    end
-    ctr = center(psi) == 1 ? length(psi) : 1
-    movecenter!(psi, ctr; kwargs...)
-end
-
-
-function conj(psi::AbstractMPS)
-    phi = deepcopy(psi)
-    for i = 1:length(phi)
-        phi[i] = conj(phi[i])
-    end
-    return phi
-end
-
 
 ### Creating copies
-copy(psi::AbstractMPS) = typeof(psi)(dim(psi), tensors(psi), center(psi))
-deepcopy(psi::AbstractMPS) = typeof(psi)(copy(dim(psi)), copy(tensors(psi)),
+copy(psi::AbstractMPS) = typeof(psi)(rank(psi), dim(psi), tensors(psi), center(psi))
+deepcopy(psi::AbstractMPS) = typeof(psi)(copy(rank(psi)), copy(dim(psi)), copy(tensors(psi)),
                                         copy(center(psi)))
 
 
@@ -158,12 +108,3 @@ function *(psi::AbstractMPS, a::Number)
 end
 *(a::Number, psi::AbstractMPS) = *(psi, a)
 /(psi::AbstractMPS, a::Number) = *(psi, 1/a)
-
-
-### Entanglement entropy
-function entropy(psi::AbstractMPS, site::Int)
-    movecenter!(psi, site)
-    U, S, V = svd(psi[site], -1)
-    S2 = diag(S).^2
-    return -sum(S2.*log.(S2))
-end

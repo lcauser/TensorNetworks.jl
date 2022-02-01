@@ -21,11 +21,11 @@ function qjmc_gates(st::Sitetypes, H::OpList, jumpops::OpList, dt; kwargs...)
 
     # Create the effective hamiltonian
     Heff = add(-1im*H, -0.5*escapeops)
-    gates = trotterize(Heff, st, dt; kwargs...)
+    gates = trotterize(st, Heff, dt; kwargs...)
     return Heff, gates
 end
 
-function qjmc_simulation(psi::MPS, Hs::OpList, jumpops::OpList, st::Sitetypes,
+function qjmc_simulation(st::Sitetypes, psi::GMPS, Hs::OpList, jumpops::OpList,
                          tmax::Real, dt::Real, observers=[]; kwargs...)
     # Set the save time and the steps
     save::Real = get(kwargs, :save, 0)
@@ -65,7 +65,7 @@ function qjmc_simulation(psi::MPS, Hs::OpList, jumpops::OpList, st::Sitetypes,
         class_t = 0
         while class_t < dt
             # Calculate jump rates
-            rates = qjmc_emission_rates(psi, jumpops, st)
+            rates = qjmc_emission_rates(st, psi, jumpops)
 
             # Determine a jump time
             jumptime = -log(rand()) / sum(rates)
@@ -79,7 +79,7 @@ function qjmc_simulation(psi::MPS, Hs::OpList, jumpops::OpList, st::Sitetypes,
 
                 # Apply it
                 movecenter!(psi, 1)
-                applyop!(psi, st, jumpops.ops[idx], jumpops.sites[idx])
+                applyop!(st, psi, jumpops.ops[idx], jumpops.sites[idx])
                 movecenter!(psi, length(psi))
                 movecenter!(psi, 1; cutoff=cutoff, maxdim=maxdim, mindim=mindim)
                 normalize!(psi)
@@ -108,7 +108,7 @@ function qjmc_simulation(psi::MPS, Hs::OpList, jumpops::OpList, st::Sitetypes,
 end
 
 
-function qjmc_emission_rates(psi::MPS, jumpops::OpList, st::Sitetypes)
+function qjmc_emission_rates(st::Sitetypes, psi::GMPS, jumpops::OpList)
     # Use the projected norm to determine jump rates
     proj = ProjMPS(psi, psi)
     rates = zeros(ComplexF64, length(jumpops.ops))
@@ -163,11 +163,11 @@ end
 
 ### Observers
 """
-    measure!(<:TEBDObserver, time::Number, psi::MPS, jumps::Vector{Int},
+    measure!(<:TEBDObserver, time::Number, psi::GMPS, jumps::Vector{Int},
              jumptimes::Vector{Number})
 Take a measurement during QJMC.
 """
-measure!(observer::QJMCObserver, time::Number, psi::MPS, jumps::Vector{Int},
+measure!(observer::QJMCObserver, time::Number, psi::GMPS, jumps::Vector{Int},
          jumptimes::Vector{Number}) = true
 
 
@@ -190,11 +190,11 @@ function QJMCOperators(oplist::OpList, st::Sitetypes, save::Bool = false,
     return QJMCOperators([], [], oplist, st, save, savefile)
 end
 
-function measure!(observer::QJMCOperators, time::Number, psi::MPS, jumps::Vector,
+function measure!(observer::QJMCOperators, time::Number, psi::GMPS, jumps::Vector,
          jumptimes::Vector)
     push!(observer.times, time)
     push!(observer.measurements, inner(observer.st, psi, observer.oplist, psi))
-    println(real(sum(observer.measurements) / length(observer.measurements)))
+    #println(real(sum(observer.measurements) / length(observer.measurements)))
     #println(real(observer.measurements[end]))
 
     # Add save
@@ -212,7 +212,7 @@ function QJMCActivity(save::Bool=false, savefile::String="")
     return QJMCActivity(0.0, 0, save, savefile)
 end
 
-function measure!(observer::QJMCActivity, time::Number, psi::MPS, jumps::Vector,
+function measure!(observer::QJMCActivity, time::Number, psi::GMPS, jumps::Vector,
          jumptimes::Vector)
     observer.time = time
     observer.jumps = length(jumps)

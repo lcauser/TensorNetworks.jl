@@ -1,40 +1,46 @@
 mutable struct ProjMPS <: AbstractProjMPS
-    psi::MPS
-    phi::MPS
-    blocks::Vector{Array{Complex{Float64}, 2}}
-    center::Int
+    objects::Vector{GMPS}
+    blocks::Vector{Array{Complex{Float64}}}
     squared::Bool
+    rank::Int
+    center::Int
     coeff::Real
 end
 
-"""
-    projMPS(psi::MPS, phi::MPS)
 
-Construct a projection on the dot product of psi and phi.
 """
-function ProjMPS(psi::MPS, phi::MPS, coeff::Real = 1.0; kwargs...)
+    projMPS(args::GMPS...; kwargs...)
+
+Construct a projection on an inner product.
+"""
+function ProjMPS(args::GMPS...; kwargs...)
     # Get key arguments
     squared::Bool = get(kwargs, :squared, false)
     center::Int = get(kwargs, :center, 1)
+    coeff::Number = get(kwargs, :coeff, 1.0)
+    projrank::Int = get(kwargs, :rank, 1)
 
-    # Create Projector
-    length(psi) != length(phi) && error("The MPS must have matching lengths.")
-    dim(psi) != dim(phi) && error("The MPS must have matching physical dims.")
-    blocks = [edgeblock(ProjMPS) for i=1:length(psi)]
-    projV = ProjMPS(psi, phi, blocks, 0, squared, coeff)
+    # Check the rank
+    squared == true && projrank == 1 && error("Squared and rank one are incomptible.")
+
+    # Check to make sure all arguments have the same properties
+    dims = [dim(arg)==dim(args[1]) for arg in args]
+    sum(dims) != length(args) && error("GMPS must share the same physical dim.")
+    lengths = [length(arg)==length(args[1]) for arg in args]
+    sum(lengths) != length(args) && error("GMPS must share the same length.")
+
+    # Make sure the arguments are the right order
+    ranks = [rank(arg) for arg in args]
+    length(args) < 2 && error("The projection must have a braket structure")
+    (ranks[1] != 1 || ranks[end] != 1) && error("The projection must have a braket structure")
+
+    # Construct the blocks
+    blocks = [edgeblock(length(args)) for i = 1:length(args[1])]
+    projV = ProjMPS(collect(args), blocks, squared, projrank, 0, coeff)
     movecenter!(projV, center)
     return projV
 end
 
-
-"""
-    edgeblock(::Type{ProjMPS})
-
-Return an edge block.
-"""
-function edgeblock(::Type{ProjMPS})
-    return convert(Array{Complex{Float64}, 2}, ones((1, 1)))
-end
 
 """
     buildleft!(projV::ProjMPS, idx::Int)
@@ -44,12 +50,16 @@ Expand the left block using the previous.
 function buildleft!(projV::ProjMPS, idx::Int)
     # Fetch the block to the left and the tensors
     left = block(projV, idx-1)
-    A1 = conj(projV.phi[idx])
-    A2 = projV.psi[idx]
+    A1 = conj(projV.objects[1][idx])
+    A2 = projV.objects[end][idx]
 
     # Contract the block with the tensors
     prod = contract(left, A1, 1, 1)
-    prod = contract(prod, A2, [1, 2], [1, 2])
+    for i = 1:length(projV.objects)-2
+        M = projV.objects[1+i][idx]
+        prod = contract(prod, M, [1, length(size(prod))-1], [1, 2])
+    end
+    prod = contract(prod, A2, [1, length(size(prod))-1], [1, 2])
 
     # Save the block
     projV[idx] = prod
@@ -63,17 +73,77 @@ Expand the right block using the previous.
 """
 function buildright!(projV::ProjMPS, idx::Int)
     # Fetch the block to the right and the tensors
+    #println("---")
+    #println(idx)
     right = block(projV, idx+1)
-    A1 = conj(projV.phi[idx])
-    A2 = projV.psi[idx]
+    A1 = conj(projV.objects[1][idx])
+    A2 = projV.objects[end][idx]
+    #println(size(right))
+    #println(size(A1))
+    #println(size(A2))
 
     # Contract the block with the tensors
-    prod = contract(A2, right, 3, 2)
-    prod = contract(A1, prod, [2, 3], [2, 3])
+    prod = contract(A2, right, 3, length(size(right)))
+    for i = 1:length(projV.objects)-2
+        M = projV.objects[1+i][idx]
+        prod = contract(M, prod, [3, 4], [2, length(size(prod))])
+    end
+    prod = contract(A1, prod, [2, 3], [2, length(size(prod))])
 
     # Save the block
     projV[idx] = prod
 end
+
+
+"""
+    product(projV::ProjMPS, A, direction::Bool = 0, nsites::Int = 2)
+
+Determine the product of the projection on proposed sites.
+"""
+function product(projV::ProjMPS, A, direction::Bool = 0, nsites::Int = 2)
+    # There is two routes for projection; the bra and ket are the same, and
+    # hence the projection is a rank-2 matrix on the site vectors. Otherwise,
+    # the bra and ket are different...
+    if projV.rank == 2 && projV.squared == false
+        # Determine the site
+        site = direction ? projV.center - nsites + 1 : projV.center
+
+        # Get the blocks
+        left = block(projV, site - 1)
+        right = block(projV, site + nsites)
+
+        # Move vector D to beginning
+        prod = moveidx(left, length(size(left)), 2)
+
+        # Contract for nsites over all middle MPO objects
+        for i = 1:nsites
+            for j = 1:length(projV.objects)-2
+                if j == 1
+                    prod = contract(prod, projV.objects[j+1][site-1+i], 1+2*i, 1)
+                else
+                    prod = contract(prod, projV.objects[j+1][site-1+i],
+                                    [1+2*i, length(size(prod))-1], [1, 2])
+                end
+            end
+            prod = moveidx(prod, length(size(prod))-1, 2*i+2)
+        end
+
+        # Contract the given site
+        prod = contract(prod, A, [2*k for k = 1:nsites+1], [k for k=1:nsites+1])
+        prod = contract(prod, right, [k for k=2+nsites:length(size(prod))],
+                        [k for k=2:length(size(right))])
+    else
+        # Fetch the projection
+        prod = project(projV, A, direction, nsites)
+
+        # Contract with tensor
+        prod2 = projV.squared == true ? conj(prod) : 1
+        prod = contract(prod, A, [k for k=1:length(size(prod))], [k for k=1:length(size(prod))])[1]
+        prod *= prod2 * projV.coeff
+    end
+    return prod
+end
+
 
 """
     project(projV::ProjMPS, A, direction::Bool = 0, nsites::Int = 2)
@@ -88,31 +158,37 @@ function project(projV::ProjMPS, A, direction::Bool = 0, nsites::Int = 2)
     left = block(projV, site - 1)
     right = block(projV, site + nsites)
 
-    # Loop through taking the product
-    prod = moveidx(left, 1, -1)
+    #if projV.rank == 2
+    #    error("Projection not supported for rank-2 objects.")
+    #end
+
+    # Move vector for D to beginning
+    prod = moveidx(left, length(size(left)), 1)
+
+    # Loop through nsites
     for i = 1:nsites
-        B = conj(projV.phi[site - 1 + i])
-        prod = contract(prod, B, length(size(prod)), 1)
-    end
-    prod = contract(prod, right, length(size(prod)), 1)
+        # Contract with first vector
+        prod = contract(prod, projV.objects[1][site-1+i], 1+i, 1)
 
-
-    # Get the square
-    if projV.squared == true
-        prod2 = contract(left, A, 2, 1)
-        prod2 = moveidx(prod2, 1, -1)
-        for i = 1:nsites
-            B = conj(projV.phi[site - 1 + i])
-            prod2 = contract(prod2, B, [length(size(prod2)), 1], [1, 2])
+        # Contract with MPO tensors
+        for j = 1:length(projV.objects)-2
+            prod = contract(prod, projV.objects[1+j][site-1+i],
+                            [1+i, length(size(prod))-1], [1, 2])
         end
-        prod2 = contract(prod2, right, [1, 2], [2, 1])
-        prod *= conj(prod2[1])
+        prod = moveidx(prod, length(size(prod))-1, 1+i)
     end
 
-    return projV.coeff*conj(prod)
+    # Contract with right
+    prod = contract(prod, right, [k for k=2+nsites:length(size(prod))],
+                    [k for k=1:length(size(right))-1])
+    return prod
 end
 
+"""
+    calculate(projV::ProjMPS)
 
+Calculate the fully contracted projection.
+"""
 function calculate(projV::ProjMPS)
     # Determine the site
     site = projV.center
@@ -120,41 +196,21 @@ function calculate(projV::ProjMPS)
     # Get the blocks
     left = block(projV, site - 1)
     right = block(projV, site + 1)
-    A = projV.psi[site]
-    B = conj(projV.phi[site])
+    A1 = conj(projV.objects[1][site])
+    A2 = projV.objects[end][site]
 
-    # Contract blocks with tensors
-    prod = contract(left, B, 1, 1)
-    prod = contract(prod, A, [1, 2], [1, 2])
-    prod = contract(prod, right, [1, 2], [1, 2])
-
-
-    if projV.squared == true
-        return prod[1]*conj(prod[1])
+    # Contract the block with the tensors
+    prod = contract(left, A1, 1, 1)
+    for i = 1:length(projV.objects)-2
+        M = projV.objects[1+i][site]
+        prod = contract(prod, M, [1, length(size(prod))-1], [1, 2])
     end
+    prod = contract(prod, A2, [1, length(size(prod))-1], [1, 2])
+    #println("----")
+    #println(site)
+    #println(size(prod))
+    #println(size(right))
+    prod = contract(prod, right, [i for i=1:length(prod)], [i for i=1:length(prod)])
+
     return projV.coeff*prod[1]
-end
-
-
-function overlap(projV::ProjMPS, A, direction::Bool = 0, nsites::Int = 2)
-    # Determine the site
-    site = direction ? projV.center - nsites + 1 : projV.center
-
-    # Get the blocks
-    left = block(projV, site - 1)
-    right = block(projV, site + nsites)
-
-    # Loop through taking the product
-    prod = contract(left, A, 2, 1)
-    prod = moveidx(prod, 1, -1)
-    for i = 1:nsites
-        B = conj(projV.phi[site - 1 + i])
-        prod = contract(prod, B, [length(size(prod)), 1], [1, 2])
-    end
-    prod = contract(prod, right, [1, 2], [2, 1])[1]
-    if projV.squared
-        prod = conj(prod) * prod
-    end
-
-    return projV.coeff*prod
 end

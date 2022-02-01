@@ -1,6 +1,8 @@
-function dmrgx(psi::MPS, Hs::ProjMPSSum; kwargs...)
+function dmrgx(psi::GMPS, Hs::ProjMPSSum; kwargs...)
     # DMRG options
     nsites::Int = get(kwargs, :nsites, 2)
+    krylovdim::Int = get(kwargs, :krylovdim, 3)
+    kryloviter::Int = get(kwargs, :kryloviter, 2)
     ishermitian::Bool = get(kwargs, :ishermitian, true)
 
     # Convergence criteria
@@ -17,7 +19,7 @@ function dmrgx(psi::MPS, Hs::ProjMPSSum; kwargs...)
     mindim::Int = get(kwargs, :mindim, 1)
 
     # Create projection of inner product of psi and psi
-    projnorm = ProjMPS(psi, psi)
+    projnorm = ProjMPS(psi, psi; squared=false, rank=1)
     movecenter!(projnorm, 1)
 
     # Calculate the cost & bond dimension
@@ -50,17 +52,16 @@ function dmrgx(psi::MPS, Hs::ProjMPSSum; kwargs...)
             end
 
             # Construct the effective hamilonian and solve
-            sz = prod(size(A0))
-            Heff(x) = project(Hs, x, direction, nsites)
-            eig, vec = eigsolve(Heff, A0, sz, :SR, krylovdim=sz, tol=1e-12,
-                                ishermitian=ishermitian, maxiter=300)
+            Heff(x) = product(Hs, x, direction, nsites)
+            eig, vec = eigsolve(Heff, A0, 1, :SR, maxiter=kryloviter,
+                                krylovdim=krylovdim, ishermitian=ishermitian,
+                                tol=1e-14)
             #eig, vec = eigs(Heff; nev=1, ncv=3, tol=0.1, v0=flatten(A0), which=:SR)
-
 
             # Determine overlaps
             overlaps = []
             for i = 1:length(vec)
-                push!(overlaps, abs(overlap(projnorm, vec[i], direction, nsites))^2)
+                push!(overlaps, abs(product(projnorm, vec[i], direction, nsites))^2)
             end
 
             # Find maximum overlap and update
@@ -72,6 +73,7 @@ function dmrgx(psi::MPS, Hs::ProjMPSSum; kwargs...)
         end
         # Reverse direction, build projector blocks to the end
         movecenter!(Hs, direction ? 1 : length(psi))
+        movecenter!(projnorm, direction ? 1 : length(psi))
         direction = !direction
 
         # Check convergence
@@ -111,10 +113,10 @@ function dmrgx(psi::MPS, Hs::ProjMPSSum; kwargs...)
 end
 
 """
-    dmrgx(psi0::MPS, H::MPO; kwargs...)
-    dmrgx(psi0::MPS, Hs::Vector{MPO}; kwargs...)
-    dmrgx(psi0::MPS, H::MPO, V::MPS; kwargs...)
-    dmrgx(psi0::MPS, Hs::Vector{MPO}, Vs::Vector{MPS}; kwargs...)
+    dmrgx(psi0::GMPS, H::GMPS; kwargs...)
+    dmrgx(psi0::GMPS, Hs::Vector{GMPS}; kwargs...)
+    dmrgx(psi0::GMPS, H::GMPS, V::GMPS; kwargs...)
+    dmrgx(psi0::GMPS, Hs::Vector{MPO}, Vs::Vector{MPS}; kwargs...)
 
 Perform DMRG-X calculations with an MPO, or list of MPOs, and project out
 vectors. It calculates all the eigenvectors and eigenvalues of some effective
@@ -123,6 +125,8 @@ update.
 
 Key arguments:
     - nsites::Int : Number of sites to optimize over. Default is 2.
+    - krylovdim::Int : Number of krylov vectors to create. Default is 3.
+    - kryloviter::Int : Number of krylov iterations. Default is 1.
     - minsweeps::Int : Minimum number of DMRG sweeps to perform. Default is 1.
     - maxsweeps::Int : Maximum number of DMRG sweeps to perform. Use 0 for
         unlimited. Default is 1000.
@@ -137,31 +141,28 @@ Key arguments:
     - mindim::Int : Minimum bond dimension. Default is 1.
 """
 
-function dmrgx(psi0::MPS, H::MPO; kwargs...)
-    movecenter!(psi0, 1)
-    return dmrgx(psi0, ProjMPSSum([ProjMPO(psi0, H)]); kwargs...)
-end
+function dmrgx(psi::GMPS, Hs::GMPS...; kwargs...)
+    # Make sure psi is correct
+    d = dim(psi)
+    N = length(psi)
+    rank(psi) != 1 && error("Psi must be a GMPS of rank 1 (vector).")
 
-function dmrgx(psi0::MPS, Hs::Vector{MPO}; kwargs...)
-    movecenter!(psi0, 1)
-    return dmrgx(psi0, ProjMPSSum([ProjMPO(psi0, H) for H = Hs]); kwargs...)
-end
-
-function dmrgx(psi0::MPS, H::MPO, V::MPS; kwargs...)
-    movecenter!(psi0, 1)
-    Hs = [ProjMPS(psi0, V, 1.0; squared=true), ProjMPO(psi0, H)]
-    return dmrgx(psi0, ProjMPSSum(Hs); kwargs...)
-end
-
-
-function dmrgx(psi0::MPS, Hs::Vector{MPO}, Vs::Vector{MPS}; kwargs...)
-    movecenter!(psi0, 1)
-    Hs = []
-    for H in Hs
-        push!(Hs, ProjMPO(psi0, H))
+    # Construct effective Hamiltonian
+    ProjHs = ProjMPS[]
+    length(Hs) == 0 && error("You must provide atleast one MPS/MPO for the Hamiltonian.")
+    for i = 1:length(Hs)
+        length(Hs[i]) != N && error("GMPS must share the same properties.")
+        dim(Hs[i]) != d && error("GMPS must share the same properties.")
+        if rank(Hs[i]) == 2
+            push!(ProjHs, ProjMPS(psi, Hs[i], psi; rank=2))
+        elseif rank(Hs[i]) == 1
+            push!(ProjHs, ProjMPS(Hs[i], psi; rank=2, squared=true))
+        else
+            error("Hamiltonian must be composed of MPOs (rank 2) or MPSs (rank 1).")
+        end
     end
-    for V in Vs
-        push!(Hs, ProjMPS(psi0, V, 1.0; squared=true))
-    end
-    return dmrgx(psi0, ProjMPSSum(Hs); kwargs...)
+
+    H = ProjMPSSum(ProjHs)
+    movecenter!(H, 1)
+    return dmrgx(psi, H; kwargs...)
 end

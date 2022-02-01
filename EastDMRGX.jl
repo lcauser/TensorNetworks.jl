@@ -18,7 +18,7 @@ for i = 1:N-1
     add!(H, ["pu", "pu"], [i, i+1], (1-c))
     add!(H, ["pu", "pd"], [i, i+1], c)
 end
-H = MPO(H, sh)
+H = MPO(sh, H)
 
 # Create initial guess
 states = ["dn" for i = 1:N]

@@ -54,6 +54,25 @@ function movecenter!(projVs::ProjMPSSum, idx::Int)
     end
 end
 
+
+"""
+    product(projVs::ProjMPSSum, A, direction::Bool = 0, nsites::Int = 2)
+
+Determine the product of the projection on proposed sites.
+"""
+function product(projVs::ProjMPSSum, A, direction::Bool = 0, nsites::Int = 2)
+    prod = 1
+    for i = 1:length(projVs.projs)
+        if i == 1
+            prod = product(projVs.projs[i], A, direction, nsites)
+        else
+            prod += product(projVs.projs[i], A, direction, nsites)
+        end
+    end
+    return prod
+end
+
+
 """
     project(projVs::ProjMPSSum, A, direction::Bool = 0, nsites::Int = 2)
 
@@ -71,7 +90,11 @@ function project(projVs::ProjMPSSum, A, direction::Bool = 0, nsites::Int = 2)
     return prod
 end
 
+"""
+    calculate(projV::ProjMPS)
 
+Calculate the fully contracted projection.
+"""
 function calculate(projVs::ProjMPSSum)
     prod = 1
     for i = 1:length(projVs.projs)
