@@ -1,8 +1,8 @@
 include("src/TensorNetworks.jl")
 
-N = 6
+N = 10
 c = 0.5
-s = -1.0
+s = 2e-2
 dt = 0.01
 maxdim = 3
 cutoff = 0
@@ -45,30 +45,22 @@ zero = productPEPS(sh, states)
 
 # Initial states
 sh = spinhalf()
-states = [["s" for i = 1:N] for j = 1:N]
+states = [["dn" for i = 1:N] for j = 1:N]
 states[1][1] = "up"
 states[N][N] = "s"
 psi = productPEPS(sh, states)
-psi, energy = fullupdate(psi, H, 0.1, sh; maxdim=1, maxiter=10000, miniter=100, chi=1, saveiter=100)
+#psi, energy = fullupdate(psi, H, 0.1, sh; maxdim=1, maxiter=10000, miniter=100, chi=1, saveiter=100)
 
 
-psi, energy = fullupdate(psi, H, 0.1, sh maxdim=2, maxiter=500, miniter=100, chi=1, chieval=16, saveiter=500, update_tol=1e-7)
-
-if s > 0
-    states = [["dn" for i = 1:N] for j = 1:N]
-    states[1][1] = "up"
-    states[N][N] = "s"
-    psi2 = productPEPS(sh, states)
-    psi2, energy2 = fullupdate(psi2, H, 0.1, sh; maxdim=1, maxiter=10000, miniter=100, chi=1, saveiter=100)
-    psi2, energy2 = fullupdate(psi2, H, 0.1, sh; maxdim=2, maxiter=500, miniter=100, chi=1, chieval=16, saveiter=500, update_tol=1e-7)
-    psi = energy2 > energy ? psi2 : psi
-end
+#psi, energy = fullupdate(psi, H, 0.1, sh; maxdim=2, maxiter=500, miniter=100, chi=1, chieval=16, saveiter=500, update_tol=1e-7)
 
 # Evolve fully
-psi, energy = fullupdate(psi, H, 0.01, sh; maxdim=2, maxiter=10000, miniter=1000, chi=1, saveiter=500)
-psi, energy = fullupdate(psi, H, 0.01, sh; maxdim=3, maxiter=10000, miniter=1000, chi=1, saveiter=500)
-psi, energy = fullupdate(psi, H, 0.01, sh; maxdim=4, maxiter=10000, miniter=1000, chi=1, saveiter=500)
-psi, energy = fullupdate(psi, H, 0.001, sh; maxdim=4, maxiter=1000, miniter=200, chi=4, dropoff=1, saveiter=100)
+psi, energy = simpleupdate(psi, 0.1, sh, H; maxiter=100000, miniter=100, maxdim=1, chi=50, cutoff=1e-8, saveiter=200)
+psi, energy = simpleupdate(psi, 0.1, sh, H; maxiter=100000, miniter=100, maxdim=2, chi=50, cutoff=1e-8, saveiter=200)
+psi, energy = simpleupdate(psi, 0.1, sh, H; maxiter=100000, miniter=100, maxdim=3, chi=50, cutoff=1e-8, saveiter=200)
+psi, energy = simpleupdate(psi, 0.1, sh, H; maxiter=100000, miniter=100, maxdim=4, chi=50, cutoff=1e-8, saveiter=200)
+psi, energy = simpleupdate(psi, 0.01, sh, H; maxiter=100000, miniter=100, maxdim=4, chi=50, cutoff=1e-8, saveiter=200)
+psi, energy = fullupdate(psi, H, 0.01, sh; maxdim=4, maxiter=1000, miniter=1, chi=16, saveiter=10)
 
 
 # Measure occupations
@@ -82,3 +74,7 @@ add!(ns, ["id"], [1, 1], false, 1)
 ns = inner(sh, psi, ns, psi; maxchi=200)
 ns = [ns[i] / ns[end] for i = 1:length(ns)-1]
 ns = reshape(ns, (N, N))
+
+evalenv = Environment(psi, psi; chi=2)
+normal = inner(evalenv)
+energy = real(sum(inner(sh, evalenv, H) / normal))

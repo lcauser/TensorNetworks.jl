@@ -1,6 +1,6 @@
 ## TO-DO: Energy calculation via gate, not through list
 
-function simpleupdate(psi::PEPS, dt::Real, st::Sitetypes, ops::OpList2d; kwargs...)
+function simpleupdate(psi::GPEPS, dt::Real, st::Sitetypes, ops::OpList2d; kwargs...)
     # Get convergence arguments
     maxiter = get(kwargs, :maxiter, 0)
     miniter = get(kwargs, :miniter, 1)
@@ -13,7 +13,7 @@ function simpleupdate(psi::PEPS, dt::Real, st::Sitetypes, ops::OpList2d; kwargs.
     # Get psi properties
     maxdim = get(kwargs, :maxdim, maxbonddim(psi))
     chi = maxdim != 1 ? get(kwargs, :chi, 300) : 1
-    N = length(psi)
+    N = size(psi)[1]
 
     # Create the gates
     gates = trotterize(st, ops, dt)

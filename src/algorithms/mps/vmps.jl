@@ -13,9 +13,13 @@ function vmps(psi::GMPS, Vs::AbstractProjMPS; kwargs...)
     mindim::Int = get(kwargs, :mindim, 1)
 
     # Calculate the cost & bond dimension
-    cost = calculate(Vs)
-    cost += conj(cost)
-    lastcost = copy(cost)
+    function calculatecost()
+        normal = norm(psi)^2
+        projcost = calculate(Vs)
+        return normal - 2*abs(projcost)
+    end
+    diff(x, y) = abs(x) < 1e-10 ? abs(x-y) : abs((x - y) / x)
+    lastcost = calculatecost()
     D = maxbonddim(psi)
     lastD = copy(D)
 
@@ -24,6 +28,7 @@ function vmps(psi::GMPS, Vs::AbstractProjMPS; kwargs...)
     converged = false
     convergedsweeps = 0
     sweeps = 0
+    difference = 0
     while !converged
         for j = 1:length(psi)+1-nsites
             # Determine the site
@@ -59,11 +64,10 @@ function vmps(psi::GMPS, Vs::AbstractProjMPS; kwargs...)
         # Check convergence
         sweeps += 1
         D = maxbonddim(psi)
-        cost = calculate(Vs)
-        cost += conj(cost)
+        cost = calculatecost()
         if sweeps >= minsweeps
-            diff(x, y) = abs(x) < 1e-10 ? abs(x-y) : abs((x - y) / x)
-            if diff(cost, lastcost) < tol && lastD == D
+            difference = diff(cost, lastcost)
+            if difference < tol && lastD == D
                 convergedsweeps += 1
             else
                 convergedsweeps == 0
@@ -84,7 +88,7 @@ function vmps(psi::GMPS, Vs::AbstractProjMPS; kwargs...)
                    real(cost), D)
         end
     end
-
+    #println(difference)
     return psi
 end
 

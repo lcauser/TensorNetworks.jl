@@ -53,15 +53,17 @@ include("lattices/qkcms.jl")
 
 ######################################
 # PEPS Structures
-#include("structures/peps/abstractpeps.jl")
-#include("structures/peps/peps.jl")
-#include("structures/peps/oplist2d.jl")
-#include("structures/peps/gates2d.jl")
-#include("structures/peps/environment.jl")
-#include("structures/peps/projbmpo.jl")
+include("structures/peps/oplist2d.jl")
+include("structures/peps/gates2d.jl")
+include("structures/peps/abstractpeps.jl")
+include("structures/peps/gpeps.jl")
+include("structures/peps/peps.jl")
+include("structures/peps/pepo.jl")
+include("structures/peps/environment.jl")
+include("structures/peps/projbmps.jl")
 #include("algorithms/peps/vbmpo.jl")
 
 #####################################
 # PEPS algorithms
-#include("algorithms/peps/simpleupdate.jl")
-#include("algorithms/peps/fullupdate.jl")
+include("algorithms/peps/simpleupdate.jl")
+include("algorithms/peps/fullupdate.jl")

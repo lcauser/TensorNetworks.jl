@@ -1,5 +1,5 @@
 """
-    GMPS(rank::Int, dim::Int, tensors::Vector{Array{Complex{Float64}, 3}},
+    GMPS(rank::Int, dim::Int, tensors::Vector{Array{Complex{Float64}}},
          center::Int)
     GMPS(rank::Int, dim::Int, length::Int)
 
@@ -176,12 +176,12 @@ a direction to move the gauge.
 """
 function replacesites!(psi::GMPS, A, site::Int, direction::Bool = false; kwargs...)
     # Determine the number of sites
-    nsites = length(size(A)) - 2
+    nsites::Int = (length(size(A)) - 2) / rank(psi)
 
     # Deal with case of just one site
     if nsites == 1
         psi[site] = A
-        if 0 < (site + 1 - 2*direction) && (site + 1 - 2*direction) < length(psi)
+        if 0 < (site + 1 - 2*direction) && (site + 1 - 2*direction) <= length(psi)
             movecenter!(psi, site + 1 - 2*direction)
         end
         return nothing
@@ -278,14 +278,30 @@ function bGMPS(chi::Int, bonddims::Vector{Int}...)
     M = GMPS(r, 1, N)
     for i = 1:N
         D1 = i == 1 ? 1 : chi
-        D2 = i == length ? 1 : chi
-        M[i] = abs.(randn(Float64, D1, [bonddims[j][i] for j=1:N]..., D2))
+        D2 = i == N ? 1 : chi
+        M[i] = abs.(randn(Float64, D1, [bonddims[j][i] for j=1:r]..., D2))
     end
-    movecenter!(M, length)
+    movecenter!(M, N)
     movecenter!(M, 1; maxdim=chi, cutoff=1e-30)
-    M[1] = abs.(randn(Float64, D1, [bonddims[j][i] for j=1:N]..., size(M[2])[1]))
+    M[1] = abs.(randn(Float64, 1, [bonddims[j][1] for j=1:r]..., size(M[2])[1]))
+    M[1] /= norm(M)
     return M
 end
+
+"""
+    bGMPSOnes(r::Int, N::Int)
+
+Create a bMPO filled with ones of size N and rank r.
+"""
+function bGMPSOnes(r::Int, N::Int)
+    # Construct MPO
+    M = GMPS(r, 1, N)
+    for i = 1:N
+        M[i] = ones(ComplexF64, [1 for i = 1:2+r]...)
+    end
+    return M
+end
+
 
 
 ### Save and write

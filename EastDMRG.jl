@@ -2,8 +2,8 @@ include("src/TensorNetworks.jl")
 
 # Model parameters
 N = 10
-s = -1.0
-c = 0.5
+s = 0.0
+c = 0.2 / 1.2
 
 # Create lattice type
 sh = spinhalf()
@@ -21,16 +21,17 @@ end
 H = MPO(sh, H)
 
 # Create initial guess
-psi = productMPS(sh, ["dn" for i = 1:N])
-psi = randomMPS(2, N, 8)
+#psi = productMPS(sh, ["s" for i = 1:N])
+#psi = randomMPS(2, N, 8)
+psi = productMPS(N, [sqrt(c), sqrt(1-c)])
 movecenter!(psi, 1)
 
 # Do DMRG
-@time psi, energy = dmrg(psi, H; maxsweeps=100, cutoff=1e-12, maxdim=32, nsites=2)
+@time psi, energy = dmrg(psi, H; maxsweeps=1000, cutoff=1e-12, maxdim=128, nsites=2)
 
 # Find excited state
 psi2 = randomMPS(2, N, 2)
-@time psi2, energy2 = dmrg(psi2, H, psi; maxsweeps=100, cutoff=1e-12, maxdim=32, nsites=2)
+@time psi2, energy2 = dmrg(psi2, H, psi; maxsweeps=10000, cutoff=1e-12, maxdim=128, nsites=2)
 
 # Measure Occupations and Correlations
 oplist = OpList(N)

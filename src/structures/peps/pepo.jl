@@ -4,11 +4,6 @@
 
 Initiate a PEPS.
 """
-mutable struct PEPO <: AbstractPEPO
-    dim::Int
-    tensors::Array{Array{ComplexF64, 5}, 2}
-end
-
 function PEPO(dim::Int, height::Int, length::Int)
     tensors = Array{Array{ComplexF64, 6}, 2}(undef, (height, length))
     for i = 1:height
@@ -17,7 +12,7 @@ function PEPO(dim::Int, height::Int, length::Int)
         end
     end
 
-    return PEPO(dim, tensors)
+    return GPEPS(2, dim, tensors)
 end
 
 function PEPO(dim::Int, size::Int)
@@ -33,9 +28,8 @@ end
 
 Create a product state PEPO.
 """
-
 function productPEPO(height::Int, length::Int, A::Array{Complex{Float64}, 6})
-    psi = PEPS(size(A)[6], height, length)
+    psi = GPEPS(size(A)[6], height, length)
     for i = 1:height
         for j = 1:length
             tensor = A
@@ -77,7 +71,7 @@ end
 
 function productPEPO(st::Sitetypes, names::Array{String, 2})
     height, len = size(names)
-    O = PEPO(st.dim, height, len)
+    O = GPEPS(2, st.dim, height, len)
     for i = 1:height
         for j = 1:len
             A = op(st, names[i, j])
@@ -105,7 +99,7 @@ function productPEPO(st::Sitetypes, names::Vector{Vector{String}})
 end
 
 function randomPEPO(dim::Int, length::Int, bonddim::Int)
-    O = PEPO(dim, length)
+    O = GPEPS(2, dim, length)
     for i = 1:length
         for j = 1:length
             A = randn(ComplexF64, bonddim, bonddim, bonddim, bonddim, dim, dim)
@@ -125,4 +119,18 @@ function randomPEPO(dim::Int, length::Int, bonddim::Int)
         end
     end
     return O
+end
+
+"""
+    randomPEPO(dim::Int, length::Int, height::Int, bonddim::Int)
+    randomPEPO(dim::Int, size::Int, bonddim::Int)
+
+Return a random PEPO.
+"""
+function randomPEPO(dim::Int, length::Int, height::Int, bonddim::Int)
+    return randomGPEPS(2, dim, length, height, bonddim)
+end
+
+function randomPEPO(dim::Int, size::Int, bonddim::Int)
+    return randomGPEPS(2, dim, size, size, bonddim)
 end
