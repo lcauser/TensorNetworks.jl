@@ -60,7 +60,8 @@ psi, energy = simpleupdate(psi, 0.1, sh, H; maxiter=100000, miniter=100, maxdim=
 psi, energy = simpleupdate(psi, 0.1, sh, H; maxiter=100000, miniter=100, maxdim=3, chi=50, cutoff=1e-8, saveiter=200)
 psi, energy = simpleupdate(psi, 0.1, sh, H; maxiter=100000, miniter=100, maxdim=4, chi=50, cutoff=1e-8, saveiter=200)
 psi, energy = simpleupdate(psi, 0.01, sh, H; maxiter=100000, miniter=100, maxdim=4, chi=50, cutoff=1e-8, saveiter=200)
-psi, energy = fullupdate(psi, H, 0.01, sh; maxdim=4, maxiter=1000, miniter=1, chi=16, saveiter=10)
+psi, energy = simpleupdate(psi, 0.001, sh, H; maxiter=100000, miniter=100, maxdim=4, chi=50, cutoff=1e-8, saveiter=200)
+psi, energy = fullupdate(psi, H, 0.001, sh; maxdim=4, maxiter=1000, miniter=1, chi=16, saveiter=100, update_tol=1e-12)
 
 
 # Measure occupations
