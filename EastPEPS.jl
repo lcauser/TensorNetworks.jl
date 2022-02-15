@@ -1,5 +1,5 @@
 using HDF5
-include("lib/TensorNetworks.jl/TensorNetworks.jl")
+include("src/TensorNetworks.jl")
 
 N = 10
 cs = [0.1, 0.2, 0.3, 0.4]

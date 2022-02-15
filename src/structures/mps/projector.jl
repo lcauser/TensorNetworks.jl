@@ -1,17 +1,17 @@
-"""
-    MPSProjector(dim::Int, leftMPS::MPS, rightMPS::MPS, constant::ComplexF64)
-    MPSProjector(left::MPS, right::MPS)
-
-Create a projector from a ket and bra MPS.
-"""
 mutable struct MPSProjector <: AbstractMPS
     dim::Int
-    leftMPS::MPS
-    rightMPS::MPS
+    leftMPS::GMPS
+    rightMPS::GMPS
     constant::ComplexF64
 end
 
-function MPSProjector(left::MPS, right::MPS; kwargs...)
+"""
+    MPSProjector(dim::Int, leftMPS::GMPS, rightMPS::GMPS, constant::ComplexF64)
+    MPSProjector(left::GMPS, right::GMPS)
+
+Create a projector from a ket and bra MPS.
+"""
+function MPSProjector(left::GMPS, right::GMPS; kwargs...)
     # Ensure MPS share same properties
     dim(left) != dim(right) && error("The MPS must share the same physical dimension.")
     length(left) != length(right) && error("The MPS must be the same length.")
@@ -24,7 +24,7 @@ function MPSProjector(left::MPS, right::MPS; kwargs...)
     return MPSProjector(dim(left), left, right, constant)
 end
 
-function MPSProjector(psi::MPS; kwargs...)
+function MPSProjector(psi::GMPS; kwargs...)
     return MPSProjector(psi, psi; kwargs...)
 end
 
@@ -32,11 +32,11 @@ end
 ### Products
 # Outer product with MPS
 """
-    applyMPO(O::MPSProjector, hermitian=false)
+    applyMPO(O::MPSProjector, psi::GMPS, hermitian=false)
 
 Apply an MPS Projector to an MPS. Specify whether to apply the hermitian conjugate.
 """
-function applyMPO(O::MPSProjector, psi::MPS, hermitian=false)
+function applyMPO(O::MPSProjector, psi::GMPS, hermitian=false)
     if !hermitian
         return (inner(O.leftMPS, psi) / O.constant) * deepcopy(O.rightMPS)
     else
@@ -44,5 +44,5 @@ function applyMPO(O::MPSProjector, psi::MPS, hermitian=false)
     end
 end
 
-*(O::MPSProjector, psi::MPS) = applyMPO(O, psi)
-*(psi::MPS, O::MPSProjector) = applyMPO(O, psi, true)
+*(O::MPSProjector, psi::GMPS) = applyMPO(O, psi)
+*(psi::GMPS, O::MPSProjector) = applyMPO(O, psi, true)

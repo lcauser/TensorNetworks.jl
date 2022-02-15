@@ -133,11 +133,12 @@ function qKCMSDM2(omega::Real, gamma::Real, kappa::Real=1.0)
 end
 
 """
-    vectodm(psi::MPS)
+    vectodm(psi::GMPS)
 
 Transform a matrix product density state into an MPO. """
-function vectodm(psi::MPS)
+function vectodm(psi::GMPS)
     dim = Int(sqrt(psi.dim))
+    
     # Create the MPO
     rho = MPO(dim, length(psi))
 

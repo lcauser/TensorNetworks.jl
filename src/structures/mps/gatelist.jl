@@ -63,7 +63,7 @@ end
 
 
 """
-    trotterize(ops::OpList, st::Sitetypes, dt::Float64; kwargs...)
+    trotterize(st::Sitetypes, ops::OpList, dt::Float64; kwargs...)
 
 Trotterize an operator list to produce a sequence of gates to approximately
 evolve an MPS.
@@ -72,7 +72,7 @@ Key arguments:
     - order::Int : Trotter order
     - evol::String : "real" or "imag" time evolution.
 """
-function trotterize(ops::OpList, st::Sitetypes, dt::Float64; kwargs...)
+function trotterize(st::Sitetypes, ops::OpList, dt::Float64; kwargs...)
     # Create a gate list and find the interaction range
     gl = GateList(length(ops), [], [])
     rng = siterange(ops)
@@ -121,7 +121,7 @@ function trotterize(ops::OpList, st::Sitetypes, dt::Float64; kwargs...)
 end
 
 """
-    applygate!(psi::MPS, site::Int, gate, direction::Bool = false; kwargs...)
+    applygate!(psi::GMPS, site::Int, gate, direction::Bool = false; kwargs...)
 
 Apply a gate to the MPS at a starting site. Specify a direction to move the
 gauge after truncation.
@@ -131,7 +131,7 @@ Key arguments:
     - maxdim::Int : maximum truncation bond dimension
     - mindim::Int : minimum truncation bond dimension.
 """
-function applygate!(psi::MPS, site::Int, gate, direction::Bool = false; kwargs...)
+function applygate!(psi::GMPS, site::Int, gate, direction::Bool = false; kwargs...)
     # Find the interaction range of the gate
     rng = gatesize(gate)
 
@@ -151,7 +151,7 @@ function applygate!(psi::MPS, site::Int, gate, direction::Bool = false; kwargs..
 end
 
 
-function applygates!(psi::MPS, gates::GateList; kwargs...)
+function applygates!(psi::GMPS, gates::GateList; kwargs...)
     # Apply the sequences in order
     for row = 1:length(gates.gates)
         # Determine the first and last site to be acted on

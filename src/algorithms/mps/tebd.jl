@@ -1,7 +1,11 @@
 abstract type TEBDObserver end
 
-function tebd(psi::MPS, H::OpList, st::Sitetypes, dt::Number, tmax::Number,
+function tebd(st::Sitetypes, psi::GMPS, H::OpList, dt::Number, tmax::Number,
               save::Number, observers::Vector=[], projectors=[]; kwargs...)
+    # Check properties line up
+    st.dim != dim(psi) && error("Sitetypes and MPS physical dimensions do not match.")
+    length(psi) != length(H) && error("OpList and MPS have different lengths.")
+
     # Determine truncation behaviour
     cutoff::Float64 = get(kwargs, :cutoff, 1e-12)
     variational_cutoff::Float64 = get(kwargs, :variational_cutoff, cutoff)
@@ -13,27 +17,27 @@ function tebd(psi::MPS, H::OpList, st::Sitetypes, dt::Number, tmax::Number,
     !(evol == "imag" || evol == "real") && error("evol must be real of imag.")
     order::Int = get(kwargs, :order, 2)
     !(order == 1 || order == 2) && error("Only first or second order trotter supported.")
-    gates = trotterize(H, st, dt; evol=evol, order=order)
+    gates = trotterize(st, H, dt; evol=evol, order=order)
 
     # Process the projectors; MPS, MPO and MPSProjector allowed
     projsteps::Int = get(kwargs, :projection_every, 10)
     i = 1
     projs = []
     for proj = projectors
-        if typeof(proj) == MPS
+        if rank(proj) == 1
             push!(projs, MPSProjector(proj, proj))
-        elseif typeof(proj) != MPO && typeof(proj) != MPSProjector
+        elseif rank(proj) != 2 && typeof(proj) != MPSProjector
             error("Only MPS, MPO and MPSProjectors are supported as projectors.")
         else
             push!(projs, proj)
         end
     end
     if length(projectors) > 0
-        psis = MPS[psi]
+        psis = GMPS[psi]
         for i = 1:length(projs)
             push!(psis, -1*(projs[i]*psi))
         end
-        psi = vmps(psis, MPS[]; cutoff=variational_cutoff, maxdim=maxdim)
+        psi = vmps(psis...; cutoff=variational_cutoff, maxdim=maxdim)
     end
 
 
@@ -60,11 +64,11 @@ function tebd(psi::MPS, H::OpList, st::Sitetypes, dt::Number, tmax::Number,
 
         # Project out
         if length(projectors) > 0 && ((step + 1) % projsteps) == 0
-            psis = MPS[psi]
+            psis = GMPS[psi]
             for i = 1:length(projs)
                 push!(psis, -1*(projs[i]*psi))
             end
-            psi = vmps(psis, MPS[]; cutoff=variational_cutoff, maxdim=maxdim)
+            psi = vmps(psis...; cutoff=variational_cutoff, maxdim=maxdim)
         end
 
         # Renormalize
@@ -94,9 +98,9 @@ function tebd(psi::MPS, H::OpList, st::Sitetypes, dt::Number, tmax::Number,
 
 end
 
-function tebd(psi::MPS, H::OpList, st::Sitetypes, dt::Number, tmax::Number,
+function tebd(st::Sitetypes, psi::GMPS, H::OpList, dt::Number, tmax::Number,
               save::Number, observers::Vector=[]; kwargs...)
-    return tebd(psi, H, st, dt, tmax, save, observers, MPS[]; kwargs...)
+    return tebd(st, psi, H, dt, tmax, save, observers, GMPS[]; kwargs...)
 end
 
 
@@ -110,11 +114,11 @@ checkdone!(observer::TEBDObserver) = false
 
 
 """
-    measure!(observer<:TEBDObserver, time::Float64, psi::MPS, norm::Float64)
+    measure!(observer<:TEBDObserver, time::Float64, psi::GMPS, norm::Float64)
 
 Take a measurement of an observer.
 """
-measure!(observer::TEBDObserver, time::Number, psi::MPS, norm::Number) = true
+measure!(observer::TEBDObserver, time::Number, psi::GMPS, norm::Number) = true
 
 
 """
@@ -134,7 +138,7 @@ function TEBDNorm(tol::Float64 = 1e-10)
     return TEBDNorm([], [], tol)
 end
 
-function measure!(observer::TEBDNorm, time::Number, psi::MPS, norm::Number)
+function measure!(observer::TEBDNorm, time::Number, psi::GMPS, norm::Number)
     push!(observer.times, time)
     push!(observer.measurements, norm)
 end
@@ -165,11 +169,11 @@ mutable struct TEBDOperators
     st::Sitetypes
 end
 
-function TEBDOperators(oplist::OpList, st::Sitetypes)
+function TEBDOperators(st::Sitetypes, oplist::OpList)
     return TEBDOperators([], [], oplist, st)
 end
 
-function measure!(observer::TEBDOperators, time::Number, psi::MPS, norm::Number)
+function measure!(observer::TEBDOperators, time::Number, psi::GMPS, norm::Number)
     push!(observer.times, time)
     push!(observer.measurements, inner(observer.st, psi, observer.oplist, psi))
 end

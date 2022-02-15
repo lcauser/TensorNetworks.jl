@@ -5,7 +5,7 @@ abstract type AbstractProjMPS end
 
 Determine the number of sites in the projected MPS.
 """
-length(projV::AbstractProjMPS) = length(projV.psi)
+length(projV::AbstractProjMPS) = length(projV.objects[1])
 
 
 """
@@ -16,20 +16,37 @@ Return the center of the block.
 center(projV::AbstractProjMPS) = projV.center
 
 
+"""
+    rank(projV::AbstractProjMPS)
+
+Return the tensor rank of a projection.
+"""
+rank(projV::AbstractProjMPS) = projV.rank
+
 
 ### Handle blocks
+"""
+    edgeblock(num::Int)
+
+Return an edge block.
+"""
+function edgeblock(num::Int)
+    return ones(ComplexF64, [1 for i=1:num]...)
+end
+
+
 """
     block(projV::AbstractProjMPS, idx::Int)
 
 Fetch the block at a given site.
 """
 function block(projV::AbstractProjMPS, idx::Int)
-    (idx < 1 || idx > length(projV)) && return edgeblock(typeof(projV))
+    (idx < 1 || idx > length(projV)) && return edgeblock(length(projV.objects))
     return projV.blocks[idx]
 end
 
 ### Indexing a projection
-getindex(projV::AbstractProjMPS, idx::Int) = blocks(projV, idx)
+getindex(projV::AbstractProjMPS, idx::Int) = block(projV, idx)
 function setindex!(projV::AbstractProjMPS, x, idx::Int)
     projV.blocks[idx] = x
     return projV

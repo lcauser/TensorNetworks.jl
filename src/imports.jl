@@ -14,6 +14,7 @@ import Base:
     >,
     !,
     # functions
+    adjoint,
     collect,
     conj,
     copy,

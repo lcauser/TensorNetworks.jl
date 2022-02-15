@@ -1,4 +1,4 @@
-function dmrg(psi::MPS, Hs::ProjMPSSum; kwargs...)
+function dmrg(psi::GMPS, Hs::ProjMPSSum; kwargs...)
     # DMRG options
     nsites::Int = get(kwargs, :nsites, 2)
     krylovdim::Int = get(kwargs, :krylovdim, 3)
@@ -47,7 +47,7 @@ function dmrg(psi::MPS, Hs::ProjMPSSum; kwargs...)
             end
 
             # Construct the effective hamilonian and solve
-            Heff(x) = project(Hs, x, direction, nsites)
+            Heff(x) = product(Hs, x, direction, nsites)
             eig, vec = eigsolve(Heff, A0, 1, :SR, maxiter=kryloviter,
                                 krylovdim=krylovdim, ishermitian=ishermitian,
                                 tol=1e-14)
@@ -99,10 +99,10 @@ function dmrg(psi::MPS, Hs::ProjMPSSum; kwargs...)
 end
 
 """
-    dmrg(psi0::MPS, H::MPO; kwargs...)
-    dmrg(psi0::MPS, Hs::Vector{MPO}; kwargs...)
-    dmrg(psi0::MPS, H::MPO, V::MPS; kwargs...)
-    dmrg(psi0::MPS, Hs::Vector{MPO}, Vs::Vector{MPS}; kwargs...)
+    dmrg(psi0::GMPS, H::GMPS; kwargs...)
+    dmrg(psi0::GMPS, Hs::Vector{GMPS}; kwargs...)
+    dmrg(psi0::GMPS, H::GMPS, V::GMPS; kwargs...)
+    dmrg(psi0::GMPS, Hs::Vector{MPO}, Vs::Vector{MPS}; kwargs...)
 
 Perform DMRG calculations with an MPO, or list of MPOs, and project out
 vectors.
@@ -125,31 +125,28 @@ Key arguments:
     - mindim::Int : Minimum bond dimension. Default is 1.
 """
 
-function dmrg(psi0::MPS, H::MPO; kwargs...)
-    movecenter!(psi0, 1)
-    return dmrg(psi0, ProjMPSSum([ProjMPO(psi0, H)]); kwargs...)
-end
+function dmrg(psi::GMPS, Hs::GMPS...; kwargs...)
+    # Make sure psi is correct
+    d = dim(psi)
+    N = length(psi)
+    rank(psi) != 1 && error("Psi must be a GMPS of rank 1 (vector).")
 
-function dmrg(psi0::MPS, Hs::Vector{MPO}; kwargs...)
-    movecenter!(psi0, 1)
-    return dmrg(psi0, ProjMPSSum([ProjMPO(psi0, H) for H = Hs]); kwargs...)
-end
-
-function dmrg(psi0::MPS, H::MPO, V::MPS; kwargs...)
-    movecenter!(psi0, 1)
-    Hs = [ProjMPS(psi0, V, 1.0; squared=true), ProjMPO(psi0, H)]
-    return dmrg(psi0, ProjMPSSum(Hs); kwargs...)
-end
-
-
-function dmrg(psi0::MPS, Hs::Vector{MPO}, Vs::Vector{MPS}; kwargs...)
-    movecenter!(psi0, 1)
-    Hs = []
-    for H in Hs
-        push!(Hs, ProjMPO(psi0, H))
+    # Construct effective Hamiltonian
+    ProjHs = ProjMPS[]
+    length(Hs) == 0 && error("You must provide atleast one MPS/MPO for the Hamiltonian.")
+    for i = 1:length(Hs)
+        length(Hs[i]) != N && error("GMPS must share the same properties.")
+        dim(Hs[i]) != d && error("GMPS must share the same properties.")
+        if rank(Hs[i]) == 2
+            push!(ProjHs, ProjMPS(psi, Hs[i], psi; rank=2))
+        elseif rank(Hs[i]) == 1
+            push!(ProjHs, ProjMPS(Hs[i], psi; rank=2, squared=true))
+        else
+            error("Hamiltonian must be composed of MPOs (rank 2) or MPSs (rank 1).")
+        end
     end
-    for V in Vs
-        push!(Hs, ProjMPS(psi0, V, 1.0; squared=true))
-    end
-    return dmrg(psi0, ProjMPSSum(Hs); kwargs...)
+
+    H = ProjMPSSum(ProjHs)
+    movecenter!(H, 1)
+    return dmrg(psi, H; kwargs...)
 end

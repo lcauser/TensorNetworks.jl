@@ -1,75 +1,55 @@
 """
-    MPO(dim::Int, tensors::Vector{Array{Complex{Float64}, 4}}, center::Int)
+    MPO(dim::Int, length::Int)
 
 Create a MPO with physical dimension dim.
 """
-mutable struct MPO <: AbstractMPS
-    dim::Int
-    tensors::Vector{Array{ComplexF64, 4}}
-    center::Int
-end
-
 function MPO(dim::Int, length::Int)
     tensors = []
     for i = 1:length
         push!(tensors, zeros(ComplexF64, (1, dim, dim, 1)))
     end
-    return MPO(dim, tensors, 0)
+    return MPO(2, dim, tensors, 0)
 end
-### Deal with gauge moving
+
 
 """
-    moveleft!(O::MPO, idx::Int)
+    ismpo(psi::GMPS)
 
-Move the gauge from a tensor within the MPO to the left.
+Check if a GMPS is of rank 2.
 """
-function moveleft!(O::MPO, idx::Int; kwargs...)
-    if 1 < idx && idx <= length(O)
-        U, S, V = svd(O[idx], 1; kwargs...)
-        V = contract(S, V, 2, 1)
-        O[idx] = U
-        O[idx-1] = contract(O[idx-1], V, 4, 2)
+function ismps(O::GMPS)
+    rank(O) == 2 && return true
+    return false
+end
+
+
+# Manipulations of MPO
+"""
+    adjoint(O::GMPS)
+
+Calculate the Hermitian conjugate of an operator (MPO).
+"""
+function adjoint(O::GMPS)
+    rank(O) != 2 && error("The generalised MPS must be of rank 2 (an MPO).")
+    O2 = deepcopy(O)
+    for i = 1:length(O2)
+        O2[i] = conj(moveidx(O2[i], 2, 3))
     end
+    return O2
 end
 
-"""
-    moveright!(psi::MPO, idx::Int)
-
-Move the gauge from a tensor within the MPO to the right.
-"""
-function moveright!(O::MPO, idx; kwargs...)
-    if 0 < idx && idx < length(O)
-        U, S, V = svd(O[idx], 4; kwargs...)
-        V = contract(S, V, 2, 1)
-        O[idx] = U
-        O[idx+1] = contract(V, O[idx+1], 2, 1)
-    end
-end
-
-
-"""
-    norm(O::MPO)
-
-Calculate the norm of an MPO.
-"""
-function norm(O::MPO)
-    if center(O) == 0
-        movecenter!(O, 1)
-    end
-    A = O[center(O)]
-    prod = contract(conj(A), A, 1, 1)
-    prod = trace(prod, 3, 6)
-    prod = trace(prod, 1, 3)
-    prod = trace(prod, 1, 2)
-    return prod[1]^0.5
-end
-
-function bonddim(psi::MPO, site::Int)
-    (site < 1 || site >= length(psi)) && return nothing
-    return size(psi[site])[4]
-end
 
 ### Create MPOs
+"""
+    randomMPO(dim::Int, length::Int, bonddim::Int)
+
+Create a MPO with random entries.
+"""
+function randomMPO(dim::Int, length::Int, bonddim::Int)
+    return randomGMPS(2, dim, length, bonddim)
+end
+
+
 """
     productMPO(sites::Int, A::Array{Complex{Float64}, 4})
     productMPO(sites::Int, A)
@@ -80,17 +60,17 @@ is truncated at the edge sites.
 """
 function productMPO(sites::Int, A::Array{Complex{Float64}, 4})
     tensors = Array{Complex{Float64}, 4}[]
-    push!(tensors, A[end:end, :, :, :])
+    push!(tensors, A[1:1, :, :, :])
     for i = 2:sites-1
         push!(tensors, A)
     end
-    push!(tensors, A[:, :, :, 1:1])
-    return MPO(size(A)[2], tensors, 0)
+    push!(tensors, A[:, :, :, end:end])
+    return GMPS(2, size(A)[2], tensors, 0)
 end
 
 function productMPO(sites::Int, A)
-    if length(size(A)) == 1
-        A = reshape(A, (1, size(A)[1], size(A)[1], 1))
+    if length(size(A)) == 2
+        A = reshape(A, (1, size(A)[1], size(A)[2], 1))
     end
     A = convert(Array{Complex{Float64}, 4}, A)
     return productMPO(sites, A)
@@ -98,7 +78,7 @@ end
 
 
 """
-    productMO(st::Sitetypes, names::Vector{String})
+    productMPO(st::Sitetypes, names::Vector{String})
 
 Create a product operator from the names of local operators on a sitetype.
 """
@@ -109,159 +89,49 @@ function productMPO(st::Sitetypes, names::Vector{String})
                     reshape(op(st, names[i]), (1, st.dim, st.dim, 1)))
         push!(tensors, A)
     end
-    return MPO(st.dim, tensors, 0)
-end
-
-
-"""
-    randomMPO(dim::Int, length::Int, bonddim::Int)
-
-Create a MPO with random entries.
-"""
-function randomMPO(dim::Int, length::Int, bonddim::Int)
-    tensors = []
-    for i = 1:length
-        D1 = i == 1 ? 1 : bonddim
-        D2 = i == length ? 1 : bonddim
-        push!(tensors, randn(Float64, (D1, dim, dim, D2)))
-    end
-    psi = MPO(dim, tensors, 0)
-    movecenter!(psi, 1)
-    psi[1] = randn(Float64, (1, dim, dim, min(dim^2, bonddim)))
-    normalize!(psi)
-    return psi
-end
-
-
-### Replace the sites within a MPS with a contraction of multiple sites
-"""
-    replacesites!(O::MPO, A, site::Int, direction::Bool = false; kwargs...)
-
-Replace the sites from a site onwards, with a contraction of tensors. Specify
-a direction to move the gauge.
-"""
-function replacesites!(O::MPO, A, site::Int, direction::Bool = false; kwargs...)
-    # Determine the number of sites
-    nsites = Int(round((length(size(A)) - 2) / 2))
-    balance::Bool = get(kwargs, :balance, false)
-
-    # Deal with case of just one site
-    if nsites == 1
-        psi[site] = A
-        if 0 < (site + 1 - 2*direction) && (site + 1 - 2*direction) < length(O)
-            movecenter!(O, site + 1 - 2*direction)
-        end
-        return nothing
-    end
-
-    # Repeatidly apply SVD to split the tensors
-    U = A
-    for i = 1:nsites-1
-        if direction
-            ### Sweeping Left
-            # Group together the last three indices
-            U, cmb = combineidxs(U, [length(size(U))-2, length(size(U))-1,
-                                     length(size(U))])
-
-            # Find the next site to update
-            site1 = site+nsites-i
-
-            # Apply SVD and determine the tensors
-            U, S, V = svd(U, -1; kwargs...)
-            if !balance
-                U = contract(U, S, length(size(U)), 1)
-            else
-                U = contract(U, sqrt.(S), length(size(U)), 1)
-                V = contract(sqrt.(S), V, 2, 1)
-            end
-            D = site1 == length(O) ? 1 : size(O[site1+1])[1]
-            V = reshape(V, (size(S)[2], dim(O), dim(O), D))
-
-            # Update tensors
-            O[site1] = V
-        else
-            ### Sweeping right
-            # Combine first three indexs together
-            U, cmb = combineidxs(U, [1, 2, 3])
-
-            # Find the next site to update
-            site1 = site + i - 1
-
-            # Apply SVD and determine the tensors
-            U, S, V = svd(U, -1; kwargs...)
-            if !balance
-                U = contract(U, S, length(size(U)), 1)
-            else
-                U = contract(U, sqrt.(S), length(size(U)), 1)
-                V = contract(sqrt.(S), V, 2, 1)
-            end
-            U = moveidx(U, length(size(U)), 1)
-            D = site1 == 1 ? 1 : size(O[site1-1])[4]
-            V = reshape(V, (size(S)[2], D, dim(O), dim(O)))
-            V = moveidx(V, 1, -1)
-
-            # Update tensors
-            O[site1] = V
-        end
-    end
-
-    # Update the final site
-    site1 = direction ? site : site + nsites - 1
-    O[site1] = U
-    if !balance
-        O.center = site1
-    end
-    return nothing
-end
-
-"""
-    truncatetwo!(O::MPO; kwargs...)
-
-Truncates an MPO by contracting two tensors and applying SVD. Use key arguments:
-    - mindim: minimum bond dimension (default = 1)
-    - maxdim: maximum bond dimension (default = 0, no limit)
-    - cutoff: truncation cutoff error (default = 0)
-"""
-function truncatetwo!(O::MPO; kwargs...)
-    # Move orthogonal center to the edge
-    if (O.center - length(O) / 2) > 0
-        # Move to end
-        movecenter!(O, length(O))
-
-        # Truncate by contracting tensors and using SVD
-        for i = 1:length(O)-1
-            site = length(O) - i
-            A = contract(O[site], O[site+1], 4, 1)
-            replacesites!(O, A, site, true; kwargs...)
-        end
-    else
-        # Move to beginning
-        movecenter!(O, 1)
-
-        # Truncate by contracting tensors and using SVD
-        for site = 1:length(O)-1
-            A = contract(O[site], O[site+1], 4, 1)
-            replacesites!(O, A, site, false; kwargs...)
-        end
-    end
+    return GMPS(2, st.dim, tensors, 0)
 end
 
 
 ### Products
 """
-    applyMPO(O::MPO, psi::MPS, hermitian=false; kwargs...)
+    applyMPO(O::GMPO, psi::GMPS; kwargs...)
+    applyMPO(psi::GMPS, O::GMPS; kwargs...)
+    applyMPO(O::GMPS, O::GMPS; kwargs...)
 
-Apply an MPO to an MPS. Specify whether to apply the hermitian conjugate.
-Define truncation parameters using key arguments.
+Apply an operator (MPO) O to a state (MPS) psi, O|Ψ> or <Ψ|O.
+Or apply an operator (MPO) O1 to an operator (MPO) O2.
 """
-function applyMPO(O::MPO, psi::MPS, hermitian=false; kwargs...)
-    phi = MPS(dim(psi), length(psi))
+function applyMPO(arg1::GMPS, arg2::GMPS; kwargs...)
+    # Check the arguments share the same physical dimensions and length
+    dim(arg1) != dim(arg2) && error("GMPS must share the same physical dims.")
+    length(arg1) != length(arg2) && error("GMPS must share the same length.")
+
+    # Determine which is psi and which is O
+    if rank(arg1)==1 && rank(arg2)==2
+        return MPOMPSProduct(adjoint(arg2), arg1; kwargs...)
+    elseif rank(arg1)==2 && rank(arg2)==1
+        return MPOMPSProduct(arg1, arg2; kwargs...)
+    elseif rank(arg1)==2 && rank(arg2)==2
+        return MPOMPOProduct(arg, arg2; kwargs...)
+    else
+        error("Unallowed combinations of MPS ranks.")
+        return false
+    end
+end
+*(O::GMPS, psi::GMPS) = applyMPO(O, psi)
+*(psi::GMPS, O::GMPS) = applyMPO(O, psi, true)
+
+
+function MPOMPSProduct(O::GMPS, psi::GMPS; kwargs...)
+    # Create an empty MPS
+    phi = GMPS(1, dim(psi), length(psi))
+
     # Loop through applying the MPO, and move the gauge across
     for i = 1:length(psi)
         A = psi[i]
-        M = hermitian ? conj(O[i]) : O[i]
-        idx = hermitian ? 2 : 3
-        B = contract(M, A, idx, 2)
+        M = O[i]
+        B = contract(M, A, 3, 2)
         B, cmb1 = combineidxs(B, [1, 4])
         B, cmb2 = combineidxs(B, [2, 3])
         B = moveidx(B, 1, 2)
@@ -273,15 +143,13 @@ function applyMPO(O::MPO, psi::MPS, hermitian=false; kwargs...)
 
     # Orthogonalize to first site with truncation
     movecenter!(phi, 1; kwargs...)
-
     return phi
 end
-*(O::MPO, psi::MPS) = applyMPO(O, psi)
-*(psi::MPS, O::MPO) = applyMPO(O, psi, true)
 
+function MPOMPOProduct(O1::GMPS, O2::GMPS; kwargs...)
+    # Create empty MPO
+    O = GMPS(2, dim(O1), length(O1))
 
-function applyMPO(O1::MPO, O2::MPO; kwargs...)
-    O = MPO(dim(O1), length(O1))
     # Loop through applying the MPO, and move the gauge across
     for i = 1:length(O1)
         M1 = O1[i]
@@ -298,165 +166,91 @@ function applyMPO(O1::MPO, O2::MPO; kwargs...)
 
     # Orthogonalize to first site with truncation
     movecenter!(O, 1; kwargs...)
-
     return O
 end
 
-
 """
-    inner(psi::MPS, O::MPO, phi::MPO)
+    inner(phi::GMPS, psi::GMPS)
+    inner(phi::GMPS, O::GMPS, psi::GMPS)
+    inner(phi::GMPS, ..., psi::GMPS)
+    inner(O1:GMPS, phi::GMPS, O2::GMPS, psi::GMPS)
+    dot(phi::GMPS, psi::GMPS)
+    *(phi::GMPS, psi::GMPS)
 
 Calculate the inner product of some operator with respect to a bra and ket.
 """
-function inner(psi::MPS, O::MPO, phi::MPS)
-    # Loop through each site contracting
-    prod = ones((1, 1, 1))
-    for i = 1:length(psi)
-        prod = contract(prod, conj(psi[i]), 1, 1)
-        prod = contract(prod, O[i], [1, 3], [1, 2])
-        prod = contract(prod, phi[i], [1, 3], [1, 2])
+function inner(args::GMPS...)
+    # Check to make sure all arguments have the same properties
+    length(args) < 2 && error("There must be atleast 2 MPS arguments (rank 1).")
+    dims = [dim(arg)==dim(args[1]) for arg in args]
+    sum(dims) != length(args) && error("GMPS must share the same physical dim.")
+    lengths = [length(arg)==length(args[1]) for arg in args]
+    sum(lengths) != length(args) && error("GMPS must share the same length.")
+
+    # Check for a bra and ket
+    ranks = [rank(arg) for arg in args]
+    sum([rank == 1 for rank in ranks]) != 2 && error("The inner product must have a braket structure.")
+    ranks[end] != 1 && error("The final GMPS must be rank 1 (MPS).")
+
+    # Re-arrange to form a braket
+    idx = 0
+    for j = 1:length(ranks)
+        idx = j
+        ranks[j] == 1 && break
+    end
+    for j = idx-1:-1:1
+        psi = args[j+1]
+        O = adjoint(args[j])
+        args[j] = psi
+        args[j+1] = O
     end
 
-    return prod[1, 1, 1]
+    # Calculate the inner product
+    prod = ones(ComplexF64, ([1 for i=1:length(args)]...))
+    for site = 1:length(args[1])
+        prod = contract(prod, conj(args[1][site]), 1, 1)
+        for j = 1:length(args)-1
+            prod = contract(prod, args[1+j][site], [1, length(size(prod))-1], [1, 2])
+        end
+    end
+
+    return prod[[1 for i=1:length(args)]...]
 end
+dot(phi::GMPS, psi::GMPS) = inner(phi, psi)
+*(phi::GMPS, psi::GMPS) = inner(phi, psi)
+
 
 """
-    inner(O1::MPO, psi::MPS, O2::MPO, phi::MPO)
+    trace(O::GMPS)
+    trace(O1::GMPS, O2::GMPS)
+    trace(O1::GMPS, O2::GMPS, ...)
 
-Apply O1 to psi (bra), O2 to phi (ket) and then take the inner product.
+Determine the trace of an MPO / product of MPOs..
 """
-function inner(O1::MPO, psi::MPS, O2::MPO, phi::MPS)
-    # Loop through each site contracting
-    prod = ones((1, 1, 1, 1))
-    for i = 1:length(psi)
-        prod = contract(prod, conj(psi[i]), 1, 1)
-        prod = contract(prod, conj(O1[i]), 1, 1)
-        prod = trace(prod, 3, 6)
-        prod = contract(prod, O2[i], 1, 1)
-        prod = trace(prod, 3, 5)
-        prod = contract(prod, phi[i], 1, 1)
-        prod = trace(prod, 3, 5)
+function trace(args::GMPS...)
+    # Check to make sure all arguments have the same properties
+    length(args) < 1 && error("There must be atleast 1 MPO arguments (rank 2).")
+    dims = [dim(arg)==dim(args[1]) for arg in args]
+    sum(dims) != length(args) && error("GMPS must share the same physical dim.")
+    lengths = [length(arg)==length(args[1]) for arg in args]
+    sum(lengths) != length(args) && error("GMPS must share the same length.")
+
+    # Check that they're MPOs
+    ranks = [rank(arg) for arg in args]
+    sum([rank != 2 for rank in ranks]) > 0 && error("Arguments must be GMPS of rank 2 (MPO).")
+
+    # Calculate the trace
+    prod = ones(ComplexF64, ([1 for i=1:length(args)]...))
+    for site = 1:length(args[1])
+        prod = contract(prod, conj(args[1][site]), 1, 1)
+        for j = 1:length(args)-1
+            prod = contract(prod, args[1+j][site], [1, length(size(prod))-1], [1, 2])
+        end
+        prod = trace(prod, 1, length(size(prod))-1)
     end
 
-    return prod[1, 1, 1, 1]
+    return prod[[1 for i=1:length(args)]...]
 end
-
-
-"""
-    trace(O::MPO)
-
-Determine the trace of an MPO.
-"""
-function trace(O::MPO)
-    prod = ones(1)
-    for i = 1:length(O)
-        prod = contract(prod, O[i], 1, 1)
-        prod = trace(prod, 1, 2)
-    end
-    return prod[1]
-end
-
-"""
-    trace(O1::MPO, O2::MPO)
-
-Determine the trace of MPO products.
-"""
-function trace(O1::MPO, O2::MPO)
-    prod = ones((1, 1))
-    for i = 1:length(O1)
-        prod = contract(prod, O1[i], 1, 1)
-        prod = contract(prod, O2[i], [1, 3, 2], [1, 2, 3])
-    end
-    return prod[1, 1]
-end
-
-function trace(O1::MPO, O2::MPO, O3::MPO)
-    prod = ones((1, 1, 1))
-    for i = 1:length(O1)
-        prod = contract(prod, O1[i], 1, 1)
-        prod = contract(prod, O2[i], [1, 4], [1, 2])
-        prod = contract(prod, O3[i], [1, 4, 2], [1, 2, 3])
-    end
-    return prod[1, 1, 1]
-end
-
-### Boundary MPOs
-"""
-    bMPO(length::Int)
-
-Creates a boundary MPO.
-"""
-function bMPO(length::Int)
-    M = MPO(1, length)
-    for i = 1:length
-        M[i] = ones(ComplexF64, 1, 1, 1, 1)
-    end
-    return M
-end
-
-"""
-    randombMPO(length::int, bonddims1::Vector{Int}, bonddims2::Vector{Int})
-
-Create a random bMPO with choosen ``physical'' dimensions.
-"""
-function randombMPO(length::Int, chi::Int, bonddims1, bonddims2)
-    M = MPO(1, length)
-    for i = 1:length
-        D1 = i == 1 ? 1 : chi
-        D2 = i == length ? 1 : chi
-        M[i] = abs.(randn(Float64, D1, bonddims1[i], bonddims2[i], D2))
-    end
-    movecenter!(M, length)
-    movecenter!(M, 1; maxdim=chi, cutoff=1e-30)
-
-    M[1] = abs.(randn(Float64, 1, bonddims1[1], bonddims2[1], 1*size(M[2])[1]))
-    return M
-end
-
-
-function expand!(O::MPO, dim::Int, noise=1e-3)
-    len = Int(iseven(length(O)) ? length(O) / 2 - 1 : (length(O) - 1) / 2)
-    D1 = D2 = D3 = D4 = 1
-    for i = 1:len
-        dims1 = size(O[i])
-        dims2 = size(O[length(O) + 1 - i])
-        D1 = i == 1 ? 1 : D2
-        D2 = min(D1*dims1[2]*dims1[3], dim)
-        D4 = i == 1 ? 1 : D3
-        D3 = min(D4*dims2[2]*dims2[3], dim)
-        M1 = noise*randn(Float64, D1, dims1[2], dims1[3], D2)
-        M1[1:dims1[1], :, :, 1:dims1[4]] = O[i]
-        M2 = noise*randn(Float64, D3, dims2[2], dims2[3], D4)
-        M2[1:dims2[1], :, :, 1:dims2[4]] = O[length(O) + 1 - i]
-        O[i] = M1
-        O[length(O) + 1 - i] = M2
-    end
-
-    if iseven(length(O))
-        dims1 = size(O[len+1])
-        dims2 = size(O[length(O) - len])
-        D1 = D2
-        D4 = D3
-        D2 = D3 = min(D1*dims1[2]*dims1[3], D4*dims2[2]*dims2[3], dim)
-        M1 = noise*randn(Float64, D1, dims1[2], dims1[3], D2)
-        M1[1:dims1[1], :, :, 1:dims1[4]] = O[len+1]
-        M2 = noise*randn(Float64, D3, dims2[2], dims2[3], D4)
-        M2[1:dims2[1], :, :, 1:dims2[4]] = O[length(O) - len]
-        O[len+1] = M1
-        O[length(O) - len] = M2
-    else
-        D1 = D2
-        D4 = D3
-        dims = size(O[len+1])
-        M = noise*randn(Float64, D1, dims[2], dims[3], D4)
-        M1[1:dims1[1], :, :, 1:dims1[4]] = O[len+1]
-        O[len+1] = M1
-    end
-    center = O.center
-    O.center = 0
-    movecenter!(O, center)
-end
-
 
 ### Add MPOs
 """
@@ -464,13 +258,17 @@ end
 
 Add two MPOs and apply SVD to truncate.
 """
-function addMPOs(O1::MPO, O2::MPO; kwargs...)
+function addMPOs(O1::GMPS, O2::GMPS; kwargs...)
+    # Check MPOs are the same
+    O1 != O2 && error("GMPOs must share the same properties.")
+    rank(O1) != 2 && error("GMPOs must be rank 2 (MPO).")
+
     # Fetch information
     d = dim(O1)
     N = length(O1)
 
     # Create empty MPO
-    O = MPO(d, N)
+    O = GMPS(2, d, N)
 
     # Iterative create tensors
     for i = 1:N
@@ -496,36 +294,178 @@ function addMPOs(O1::MPO, O2::MPO; kwargs...)
         O[i] = M
     end
 
-    # Apply SVD
-    O.center = 1
-    movecenter!(O, N)
-    movecenter!(O, 1; kwargs...)
+    # Apply SVD in an attempt to reduce the bond dimension
+    for site = 1:N-1
+        M = O[site]
+        U, S, V = svd(M, 4; cutoff=cutoff, maxdim=maxdim, mindim=mindim)
+        M = contract(U, S, 4, 1)
+        O[site] = M
+        O[site+1] = contract(V, O[site+1], 2, 1)
+    end
+
+    for site = N:-1:2
+        M = O[site]
+        U, S, V = svd(M, 1; cutoff=cutoff, maxdim=maxdim, mindim=mindim)
+        M = contract(S, U, 2, 1)
+        O[site] = M
+        O[site-1] = contract(O[site-1], V, 4, 2)
+    end
     return O
 end
-+(O1::MPO, O2::MPO) = addMPOs(O1, O2; cutoff=1e-16)
++(O1::GMPS, O2::GMPS) = addMPOs(O1, O2; cutoff=1e-15)
 
 
-### Save and write
-function HDF5.write(parent::Union{HDF5.File, HDF5.Group}, name::AbstractString,
-                    M::MPO)
-    g = create_group(parent, name)
-    attributes(g)["type"] = "MPO"
-    attributes(g)["version"] = 1
-    write(g, "length", length(M))
-    write(g, "center", center(M))
-    for i = 1:length(M)
-        write(g, "MPO[$(i)]", M[i])
+### Automatically construct MPOs from operator lists
+"""
+     MPO(st::Sitetypes, H::OpList; kwargs...)
+
+Construct an MPO from an operator list.
+"""
+function MPO(st::Sitetypes, H::OpList; kwargs...)
+    # Truncation information
+    cutoff::Float64 = get(kwargs, :cutoff, 1e-15)
+    maxdim::Int = get(kwargs, :maxdim, 0)
+    mindim::Int = get(kwargs, :mindim, 1)
+
+    # System properties
+    N = length(H)
+    d = st.dim
+
+    # Create empty MPO
+    ten = zeros(ComplexF64, (2, d, d, 2))
+    ten[1, :, :, 1] = op(st, "id")
+    ten[2, :, :, 2] = op(st, "id")
+    O = GMPS(2, d, N)
+    O[1] = deepcopy(ten[1:1, :, :, 1:2])
+    for i = 2:N-1
+        O[i] = deepcopy(ten[1:2, :, :, 1:2])
     end
+    O[N] = deepcopy(ten[1:2, :, :, 2:2])
+
+    # Loop through each term and determine the site range
+    maxrng = siterange(H)
+    rngs = [[] for i = 1:maxrng]
+    for i = 1:length(H.ops)
+        rng = H.sites[i][end] - H.sites[i][1] + 1
+        push!(rngs[rng], i)
+    end
+
+    # Loop through all the possible ranges of interactions
+    for i = 1:maxrng
+        # Loop through sites
+        nextterms = [[] for j=1:i]
+        coeffs = [[] for j=1:i]
+        ingoings = [[] for j=1:i]
+        outgoings = [[] for j=1:i]
+
+        for site = 1:N
+            # Find all the terms which start at the site
+            idxs = []
+            for j = rngs[i]
+                if H.sites[j][1] == site
+                    push!(idxs, j)
+                end
+            end
+
+            if i == 1
+                # Just adding to top right corner
+                for idx in idxs
+                    O[site][1, :, :, end] += H.coeffs[idx]*op(st, H.ops[idx][1])
+                end
+            else
+                # Add new terms starting at this site
+                for j = 1:length(idxs)
+                    # Fetch operator information
+                    ops = H.ops[idxs[j]]
+                    sites = H.sites[idxs[j]]
+                    coeff = H.coeffs[idxs[j]]
+
+                    # Loop through each site in the operator
+                    outgoing = 0
+                    for k = 1:i
+                        # Decide ingoing and outgoing idxs
+                        ingoing = outgoing
+                        for l = 1:length(outgoings[k])+1
+                            outgoing = l
+                            !(outgoing in outgoings[k]) && break
+                        end
+                        outgoing = k == i ? 0 : outgoing
+
+                        # Determine what the operator is
+                        op =  site+k-1 in sites ? ops[argmax([s == site+k-1 for s = sites])] : "id"
+
+                        # Add to list
+                        push!(nextterms[k], op)
+                        push!(coeffs[k], k == 1 ? H.coeffs[idxs[j]] : 1)
+                        push!(ingoings[k], ingoing)
+                        push!(outgoings[k], outgoing)
+                    end
+                end
+
+                # Pull the terms
+                terms = nextterms[1]
+                ins = ingoings[1]
+                outs = outgoings[1]
+                cos = coeffs[1]
+                for j = 1:i-1
+                    nextterms[j] = nextterms[j+1]
+                    ingoings[j] = ingoings[j+1]
+                    outgoings[j] = outgoings[j+1]
+                    coeffs[j] = coeffs[j+1]
+                end
+                nextterms[i] = []
+                ingoings[i] = []
+                outgoings[i] = []
+                coeffs[i] = []
+
+                # Expand the tensor to account for all terms
+                if length(terms) != 0
+                    ingoinglen = sum([ingoing != 0 for ingoing in ins])
+                    outgoinglen = sum([outgoing != 0 for outgoing in outs])
+                    ingoingsrt = size(O[site])[1] - 1
+                    outgoingsrt = size(O[site])[4] - 1
+                    O[site] = expand(O[site], ingoinglen, outgoinglen)
+
+                    # Add the terms to the tensor
+                    for j = 1:length(terms)
+                        # Find the idxs of each
+                        x = ins[j] == 0 ? 1 : ingoingsrt + ins[j]
+                        y = outs[j] == 0 ? outgoingsrt + 1 + outgoinglen : outgoingsrt + outs[j]
+
+                        # Set the tensor
+                        O[site][x, :, :, y] = cos[j] * op(sh, terms[j])
+                    end
+                end
+            end
+        end
+    end
+
+    # Apply SVD in an attempt to reduce the bond dimension
+    for site = 1:N-1
+        M = O[site]
+        U, S, V = svd(M, 4; cutoff=cutoff, maxdim=maxdim, mindim=mindim)
+        M = contract(U, S, 4, 1)
+        O[site] = M
+        O[site+1] = contract(V, O[site+1], 2, 1)
+    end
+
+    for site = N:-1:2
+        M = O[site]
+        U, S, V = svd(M, 1; cutoff=cutoff, maxdim=maxdim, mindim=mindim)
+        M = contract(S, U, 2, 1)
+        O[site] = M
+        O[site-1] = contract(O[site-1], V, 4, 2)
+    end
+    return O
 end
 
-function HDF5.read(parent::Union{HDF5.File, HDF5.Group}, name::AbstractString,
-                    ::Type{MPO})
-    g = open_group(parent, name)
-    if read(attributes(g)["type"]) != "MPO"
-        error("HDF5 group of file does not contain MPO data.")
-    end
-    N = read(g, "length")
-    center = read(g, "center")
-    tensors = [read(g, "MPO[$(i)]") for i=1:N]
-    return MPO(size(tensors[1])[2], tensors, center)
+
+function expand(O::Array{}, D1, D2)
+    dims = size(O)
+    newO = zeros(ComplexF64, (dims[1]+D1, dims[2], dims[3], dims[4]+D2))
+    d1 = dims[1] == 1 ? 1 : dims[1]-1
+    newO[1:d1, :, :, 1:dims[4]-1] = O[1:d1, :, :, 1:dims[4]-1]
+    newO[1:d1, :, :, end] = O[1:d1, :, :, end]
+    newO[dims[1]+D1, :, :, dims[4]+D2] = O[dims[1], :, :, dims[4]]
+    return newO
 end

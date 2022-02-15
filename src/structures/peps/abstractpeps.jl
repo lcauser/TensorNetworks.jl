@@ -27,9 +27,9 @@ size(psi::AbstractPEPS) = Base.size(psi.tensors)
 """
     length(::AbstractPEPS)
 
-The length (x direction) of a PEPS.
+The total number of tensors in the PEPS.
 """
-length(psi::AbstractPEPS) = size(psi)[2]
+length(psi::AbstractPEPS) = length(psi.tensors)
 
 
 """
@@ -38,6 +38,15 @@ length(psi::AbstractPEPS) = size(psi)[2]
 The size of the physical dimensions in a PEPS.
 """
 dim(psi::AbstractPEPS) = psi.dim
+
+
+"""
+    rank(::AbstractPEPS)
+
+Return the rank of a GPEPS.
+"""
+rank(psi::AbstractPEPS) = psi.rank
+
 
 
 """
@@ -87,15 +96,16 @@ function Base.show(io::IO, M::AbstractPEPS)
     sz = size(M)
     for i = 1:sz[1]
         for j = 1:sz[2]
-            println(io, "[$(i)] $(size(M[i, j]))")
+            println(io, "[$(i), $(j)] $(size(M[i, j]))")
         end
     end
 end
 
 
 ### Creating copies
-copy(psi::AbstractPEPS) = typeof(psi)(dim(psi), tensors(psi))
-deepcopy(psi::AbstractPEPS) = typeof(psi)(copy(dim(psi)), copy(tensors(psi)))
+copy(psi::AbstractPEPS) = typeof(psi)(rank(psi), dim(psi), tensors(psi))
+deepcopy(psi::AbstractPEPS) = typeof(psi)(copy(rank(psi)), copy(dim(psi)),
+                                          copy(tensors(psi)))
 
 
 ### Products with numbers

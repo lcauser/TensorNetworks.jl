@@ -1,4 +1,4 @@
-function fullupdate(psi::PEPS, H::OpList2d, dt::Number, st::Sitetypes, projectors::Vector{PEPS} = []; kwargs...)
+function fullupdate(psi::GPEPS, H::OpList2d, dt::Number, st::Sitetypes, projectors::Vector{GPEPS} = []; kwargs...)
     # Get convergence arguments
     maxiter = get(kwargs, :maxiter, 10000)
     miniter = get(kwargs, :miniter, 1000)
@@ -7,7 +7,7 @@ function fullupdate(psi::PEPS, H::OpList2d, dt::Number, st::Sitetypes, projector
 
     # Get psi properties
     maxdim = get(kwargs, :maxdim, maxbonddim(psi))
-    N = length(psi)
+    N = size(psi)[1]
     chi = get(kwargs, :chi, maxdim^2)
     chieval = get(kwargs, :chi_evaluate, 100)
     chiproj::Int = get(kwargs, :chi_proj, maxdim)
@@ -132,8 +132,8 @@ function fullupdate(psi::PEPS, H::OpList2d, dt::Number, st::Sitetypes, projector
     return psi, energy
 end
 
-function fullupdate(psi::PEPS, H::OpList2d, dt::Number, st::Sitetypes; kwargs...)
-    return fullupdate(psi, H, dt, st, PEPS[]; kwargs...)
+function fullupdate(psi::GPEPS, H::OpList2d, dt::Number, st::Sitetypes; kwargs...)
+    return fullupdate(psi, H, dt, st, GPEPS[]; kwargs...)
 end
 
 function optimize(env::Environment, gate, site11::Int, site12::Int, dir::Bool, projEnvs::Vector{Environment}; kwargs...)
@@ -148,8 +148,8 @@ function optimize(env::Environment, gate, site11::Int, site12::Int, dir::Bool, p
     site22 = site12 + !dir
 
     # Find the reduced tensors
-    A1, R1 = reducedtensor(env.psi, site11, site12, !dir ? 4 : 3)
-    A2, R2 = reducedtensor(env.psi, site21, site22, !dir ? 1 : 2)
+    A1, R1 = reducedtensor(env.objects[end], site11, site12, !dir ? 4 : 3)
+    A2, R2 = reducedtensor(env.objects[end], site21, site22, !dir ? 1 : 2)
 
     # Construct the environment for the reduced tensors
     renv = ReducedTensorEnv(env, site11, site12, dir, A1, A2)
@@ -303,8 +303,8 @@ function optimize(env::Environment, gate, site11::Int, site12::Int, dir::Bool, p
         end
 
         # Update sites
-        env.psi[site11, site12] = A1
-        env.psi[site21, site22] = A2
+        env.objects[end][site11, site12] = A1
+        env.objects[end][site21, site22] = A2
     else
         cost = costoriginal
     end
