@@ -20,7 +20,12 @@ function trotterize(st::Sitetypes, oplist::OpList2d, dt::Float64)
                 gate = sitetensor(st, oplist, [i, j], direction)
                 if gate != false
                     # Exponentiate the gate
-                    gate = exp(dt*gate, [2, 4])
+                    if length(size(gate)) == 2
+                        idxs = [2]
+                    else
+                        idxs = [2, 4]
+                    end
+                    gate = exp(dt*gate, idxs)
 
                     # Add to list
                     push!(gates, gate)

@@ -8,7 +8,7 @@ function MPO(dim::Int, length::Int)
     for i = 1:length
         push!(tensors, zeros(ComplexF64, (1, dim, dim, 1)))
     end
-    return MPO(2, dim, tensors, 0)
+    return GMPS(2, dim, tensors, 0)
 end
 
 
@@ -17,7 +17,7 @@ end
 
 Check if a GMPS is of rank 2.
 """
-function ismps(O::GMPS)
+function ismpo(O::GMPS)
     rank(O) == 2 && return true
     return false
 end
@@ -113,14 +113,13 @@ function applyMPO(arg1::GMPS, arg2::GMPS; kwargs...)
     elseif rank(arg1)==2 && rank(arg2)==1
         return MPOMPSProduct(arg1, arg2; kwargs...)
     elseif rank(arg1)==2 && rank(arg2)==2
-        return MPOMPOProduct(arg, arg2; kwargs...)
+        return MPOMPOProduct(arg1, arg2; kwargs...)
     else
         error("Unallowed combinations of MPS ranks.")
         return false
     end
 end
 *(O::GMPS, psi::GMPS) = applyMPO(O, psi)
-*(psi::GMPS, O::GMPS) = applyMPO(O, psi, true)
 
 
 function MPOMPSProduct(O::GMPS, psi::GMPS; kwargs...)
@@ -433,7 +432,7 @@ function MPO(st::Sitetypes, H::OpList; kwargs...)
                         y = outs[j] == 0 ? outgoingsrt + 1 + outgoinglen : outgoingsrt + outs[j]
 
                         # Set the tensor
-                        O[site][x, :, :, y] = cos[j] * op(sh, terms[j])
+                        O[site][x, :, :, y] = cos[j] * op(st, terms[j])
                     end
                 end
             end

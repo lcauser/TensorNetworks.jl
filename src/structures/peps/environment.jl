@@ -104,7 +104,7 @@ function buildup!(env::Environment, idx::Int)
 
     # Apply variational sweeps to limit the bond dimension
     proj = ProjbMPS(bMPO, env, true, idx)
-    bMPO = vmps(bMPO, proj; maxdim=env.chi, nsites=1)
+    bMPO = vmps(bMPO, proj; maxdim=env.chi, nsites=1, minsweeps=4)
 
     # Save the block
     env.MPS[idx] = bMPO
@@ -128,7 +128,7 @@ function builddown!(env::Environment, idx::Int)
 
     # Apply variational sweeps to limit the bond dimension
     proj = ProjbMPS(bMPO, env, false, idx)
-    bMPO = vmps(bMPO, proj; maxdim=env.chi, nsites=1)
+    bMPO = vmps(bMPO, proj; maxdim=env.chi, nsites=1, minsweeps=4)
 
     # Save the block
     env.MPS[idx] = bMPO
@@ -152,7 +152,7 @@ function buildright!(env::Environment, idx::Int)
 
     # Apply variational sweeps to limit the bond dimension
     proj = ProjbMPS(bMPO, env, false, idx)
-    bMPO = vmps(bMPO, proj; maxdim=env.chi, nsites=1)
+    bMPO = vmps(bMPO, proj; maxdim=env.chi, nsites=1, minsweeps=4)
 
     # Save the block
     env.MPS[idx] = bMPO
@@ -176,7 +176,7 @@ function buildleft!(env::Environment, idx::Int)
 
     # Apply variational sweeps to limit the bond dimension
     proj = ProjbMPS(bMPO, env, true, idx)
-    bMPO = vmps(bMPO, proj; maxdim=env.chi, nsites=1)
+    bMPO = vmps(bMPO, proj; maxdim=env.chi, nsites=1, minsweeps=4)
 
     # Save the block
     env.MPS[idx] = bMPO
@@ -488,7 +488,7 @@ function inner(env::Environment)
 end
 
 function inner(objects::GPEPS...; kwargs...)
-    env = Environment(objects; kwargs...)
+    env = Environment(objects...; kwargs...)
     return inner(env)
 end
 

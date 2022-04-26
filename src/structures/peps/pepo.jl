@@ -29,19 +29,19 @@ end
 Create a product state PEPO.
 """
 function productPEPO(height::Int, length::Int, A::Array{Complex{Float64}, 6})
-    psi = GPEPS(size(A)[6], height, length)
+    psi = GPEPS(2, size(A)[6], height, length)
     for i = 1:height
         for j = 1:length
             tensor = A
             if i == 1
-                tensor = tensor[:, end:end, :, :, :]
+                tensor = tensor[:, 1:1, :, :, :, :]
             elseif i == height
-                tensor = tensor[:, :, end:end, :, :]
+                tensor = tensor[:, :, end:end, :, :, :]
             end
             if j == 1
-                tensor = tensor[end:end, :, :, :, :]
+                tensor = tensor[1:1, :, :, :, :, :]
             elseif j == length
-                tensor = tensor[:, :, :, end:end, :]
+                tensor = tensor[:, :, :, end:end, :, :]
             end
             psi[i, j] = tensor
         end

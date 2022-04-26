@@ -33,7 +33,7 @@ function state(st::Sitetypes, name::String)
     end
 
     idx == 0 && error("The state $(name) is undefined.")
-    return st.states[idx]
+    return copy(st.states[idx])
 end
 
 
@@ -51,7 +51,7 @@ function op(st::Sitetypes, name::String)
     end
 
     idx == 0 && error("The operator $(name) is undefined.")
-    return st.ops[idx]
+    return copy(st.ops[idx])
 end
 
 """

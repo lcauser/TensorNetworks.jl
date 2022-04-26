@@ -48,10 +48,11 @@ function tebd(st::Sitetypes, psi::GMPS, H::OpList, dt::Number, tmax::Number,
 
     # Initial norm
     normal::Float64 = get(kwargs, :norm, 0)
+    energy = real(sum(inner(st, psi, H, psi)))
 
     # Make initial observables
     for observer = observers
-        measure!(observer, 0.0, psi, normal)
+        measure!(observer, 0.0, psi, normal, energy)
     end
 
     # Repeatedly evolve in time
@@ -85,16 +86,16 @@ function tebd(st::Sitetypes, psi::GMPS, H::OpList, dt::Number, tmax::Number,
         # Print information and check for convergence
         if step % nsave == 0
             @printf("time=%d, energy=%.12f, maxbonddim=%d \n",
-                    step*dt, real(psinorm) / dt, maxbonddim(psi))
-
+                    step*dt, energy, maxbonddim(psi))
+            energy = real(sum(inner(st, psi, H, psi)))
             for observer = observers
-                measure!(observer, step*dt, psi, normal)
+                measure!(observer, step*dt, psi, normal, energy)
                 converged = converged || checkdone!(observer)
             end
         end
     end
 
-    return psi, psinorm / dt
+    return psi, energy
 
 end
 
@@ -114,11 +115,11 @@ checkdone!(observer::TEBDObserver) = false
 
 
 """
-    measure!(observer<:TEBDObserver, time::Float64, psi::GMPS, norm::Float64)
+    measure!(observer<:TEBDObserver, time::Float64, psi::GMPS, norm::Float64, energy::Number)
 
 Take a measurement of an observer.
 """
-measure!(observer::TEBDObserver, time::Number, psi::GMPS, norm::Number) = true
+measure!(observer::TEBDObserver, time::Number, psi::GMPS, norm::Number, energy::Number) = true
 
 
 """
@@ -138,7 +139,7 @@ function TEBDNorm(tol::Float64 = 1e-10)
     return TEBDNorm([], [], tol)
 end
 
-function measure!(observer::TEBDNorm, time::Number, psi::GMPS, norm::Number)
+function measure!(observer::TEBDNorm, time::Number, psi::GMPS, norm::Number, energy::Number)
     push!(observer.times, time)
     push!(observer.measurements, norm)
 end
@@ -157,6 +158,41 @@ function checkdone!(observer::TEBDNorm)
     return false
 end
 
+
+"""
+    TEBDEnergy(tol::Float64 = 1e-10)
+
+Create an observer to measure the energy of the MPS during TEBD. The tol
+defines the convergence criteria for how the difference in the "energy".
+"""
+mutable struct TEBDEnergy
+    times::Vector{Float64}
+    measurements::Vector{Float64}
+    tol::Float64
+end
+
+function TEBDEnergy(tol::Float64 = 1e-10)
+    return TEBDEnergy([], [], tol)
+end
+
+function measure!(observer::TEBDEnergy, time::Number, psi::GMPS, norm::Number, energy::Number)
+    push!(observer.times, time)
+    push!(observer.measurements, energy)
+end
+
+function checkdone!(observer::TEBDEnergy)
+    length(observer.times) < 3 && return false
+    E1 = observer.measurements[end]
+    E2 = observer.measurements[end-1]
+    if 0.5*abs(E2 + E1) < 1e-8
+        abs(E2 - E1) < observer.tol && return true
+    else
+        abs(2*(E2 - E1)/(E2 + E1)) < observer.tol && return true
+    end
+    return false
+end
+
+
 """
     TEBDOperators(oplist::OpList, st::Sitetypes)
 
@@ -173,7 +209,11 @@ function TEBDOperators(st::Sitetypes, oplist::OpList)
     return TEBDOperators([], [], oplist, st)
 end
 
-function measure!(observer::TEBDOperators, time::Number, psi::GMPS, norm::Number)
+function measure!(observer::TEBDOperators, time::Number, psi::GMPS, norm::Number, energy::Number)
     push!(observer.times, time)
     push!(observer.measurements, inner(observer.st, psi, observer.oplist, psi))
+end
+
+function checkdone!(observer::TEBDOperators)
+    return false
 end

@@ -138,15 +138,19 @@ function applygate!(psi::GMPS, site::Int, gate, direction::Bool = false; kwargs.
     # Calculate the product of all sites which the gate is applied too.
     prod = psi[site]
     for i = 1:rng-1
-        prod = contract(prod, psi[site+i], 2+i, 1)
+        prod = contract(prod, psi[site+i], length(size(prod)), 1)
     end
 
     # Contract with the gate
-    prod = contract(prod, gate, [1+i for i = 1:rng], [2*i for i = 1:rng])
-    prod = moveidx(prod, 2, -1)
+    r = rank(psi)
+    prod = contract(prod, gate, [2+r*(i-1) for i = 1:rng], [2*i for i = 1:rng])
+
+    # Move idxs to the correct place
+    for i = 1:rng
+        prod = moveidx(prod, 2+(r-1)*rng+i, 2+r*(i-1))
+    end
 
     # Replace the tensors
-    #println(site)
     replacesites!(psi, prod, site, direction; kwargs...)
 end
 

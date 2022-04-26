@@ -67,6 +67,7 @@ function qKCMSDM(omega::Real, gamma::Real, kappa::Real=1.0)
     add!(st, "plid", kron(op(sh, "pl"), op(sh, "id")), "plid")
     add!(st, "idpl", kron(op(sh, "id"), transpose(op(sh, "pl"))), "idpl")
     add!(st, "plpl", kron(op(sh, "pl"), transpose(op(sh, "pl"))), "plpl")
+    add!(st, "pdapda", kron(op(sh, "pda"), transpose(op(sh, "pda"))), "pdapda")
 
     return st
 
@@ -138,7 +139,7 @@ end
 Transform a matrix product density state into an MPO. """
 function vectodm(psi::GMPS)
     dim = Int(sqrt(psi.dim))
-    
+
     # Create the MPO
     rho = MPO(dim, length(psi))
 

@@ -254,7 +254,7 @@ function randomGMPS(rank::Int, dim::Int, length::Int, bonddim::Int)
         push!(tensors, randn(Float64, idxs))
     end
     psi = GMPS(rank, dim, tensors, 0)
-    movecenter!(psi, N)
+    movecenter!(psi, length)
     movecenter!(psi, 1)
     idxs = (1, [dim for i=1:rank]..., min(dim^rank, bonddim))
     psi[1] = randn(Float64, idxs)
@@ -327,6 +327,6 @@ function HDF5.read(parent::Union{HDF5.File, HDF5.Group}, name::AbstractString,
     N = read(g, "length")
     center = read(g, "center")
     tensors = [read(g, "MPS[$(i)]") for i=1:N]
-    rank = length(size(tensors[1]) - 2)
-    return MPS(rank, size(tensors[1])[2], tensors, center)
+    rank = length(size(tensors[1])) - 2
+    return GMPS(rank, size(tensors[1])[2], tensors, center)
 end

@@ -1,7 +1,7 @@
 mutable struct ProjbMPS <: AbstractProjMPS
     psi::GMPS
     env::Environment
-    blocks::Vector{Array{Complex{Float64}, 4}}
+    blocks::Vector{Array{Complex{Float64}}}
     center::Int
     direction::Bool
     level::Int
