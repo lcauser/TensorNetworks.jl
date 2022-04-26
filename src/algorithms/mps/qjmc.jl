@@ -32,14 +32,15 @@ function qjmc_simulation(st::Sitetypes, psi::GMPS, Hs::OpList, jumpops::OpList,
     save = save == 0 ? dt : save
     steps = ceil(round(tmax / dt, digits=5))
     savesteps = ceil(round(save / dt))
+    verbose::Bool = get(kwargs, :verbose, true)
 
     # Truncation
     cutoff::Real = get(kwargs, :cutoff, 1e-12)
     mindim::Int = get(kwargs, :mindim, 1)
     maxdim::Int = get(kwargs, :maxdim, 0)
 
-    # Update jump operators?
-    update::Bool = get(kwargs, :update, false)
+    # Calculate classical escape rates for jumps?
+    classical::Bool = get(kwargs, :classical, true)
 
     # Store quantum jump information
     jumps = []
@@ -58,21 +59,17 @@ function qjmc_simulation(st::Sitetypes, psi::GMPS, Hs::OpList, jumpops::OpList,
     for i = 1:steps
         # Quantum simulation
         applygates!(psi, gates; mindim=mindim, maxdim=maxdim, cutoff=cutoff)
-        normalize!(psi)
 
+        # Determine if we will do a classical jump
+        r = rand()
+        if !classical
+            # Determine from norm
+            prob = real(norm(psi)^2)
+            normalize!(psi)
+            if r > prob
+                # Find the rates
+                rates = qjmc_emission_rates(st, psi, jumpops)
 
-        # Classical simulation
-        class_t = 0
-        while class_t < dt
-            # Calculate jump rates
-            rates = qjmc_emission_rates(st, psi, jumpops)
-
-            # Determine a jump time
-            jumptime = -log(rand()) / sum(rates)
-            class_t += jumptime
-
-            # Do the transition
-            if class_t < dt
                 # Pick the transition
                 r = rand()
                 idx = findfirst([r < x for x = (cumsum(rates) / sum(rates))])
@@ -86,17 +83,55 @@ function qjmc_simulation(st::Sitetypes, psi::GMPS, Hs::OpList, jumpops::OpList,
 
                 # Store the jump
                 push!(jumps, idx)
-                push!(jumptimes, time+class_t)
+                push!(jumptimes, time+dt)
+            end
+        else
+            # Normalize
+            normalize!(psi)
+
+            # Classical simulation
+            class_t = 0
+            while class_t < dt
+                # Calculate jump rates & check if a jump will happen
+                rates = qjmc_emission_rates(st, psi, jumpops)
+                er = sum(rates)
+                prob = exp(-er*(dt-class_t))
+
+                # Check if a jump happens
+                if rand() > prob
+                    # Determine a jump time
+                    jumptime = -log(rand()*(1-prob) + prob) / er
+                    class_t += jumptime
+
+                    # Pick the transition
+                    r = rand()
+                    idx = findfirst([r < x for x = (cumsum(rates) / er)])
+
+                    # Apply it
+                    movecenter!(psi, 1)
+                    applyop!(st, psi, jumpops.ops[idx], jumpops.sites[idx])
+                    movecenter!(psi, length(psi))
+                    movecenter!(psi, 1; cutoff=cutoff, maxdim=maxdim, mindim=mindim)
+                    normalize!(psi)
+
+                    # Store the jump
+                    push!(jumps, idx)
+                    push!(jumptimes, time+class_t)
+                else
+                    break
+
+                end
             end
         end
 
-        # Increment time
         time += dt
 
         # Measure observations and output information
         if i % savesteps == 0
-            @printf("time=%.5f, jumps=%d, maxbonddim=%d, activity=%.5f \n", time,
-                   length(jumps), maxbonddim(psi), length(jumps)/time)
+            if verbose
+                @printf("time=%.5f, jumps=%d, maxbonddim=%d, activity=%.5f \n", time,
+                       length(jumps), maxbonddim(psi), length(jumps)/time)
+            end
 
             for observer in observers
                 measure!(observer, time, psi, jumps, jumptimes)
@@ -172,7 +207,7 @@ measure!(observer::QJMCObserver, time::Number, psi::GMPS, jumps::Vector{Int},
 
 
 """
-    TEBDOperators(oplist::OpList, st::Sitetypes)
+    QJMCOperators(oplist::OpList, st::Sitetypes)
 
 Measure multiple operators of a time evolved MPS.
 """
@@ -201,6 +236,7 @@ function measure!(observer::QJMCOperators, time::Number, psi::GMPS, jumps::Vecto
 end
 
 
+
 mutable struct QJMCActivity
     time::Float64
     jumps::Int
@@ -222,4 +258,29 @@ function measure!(observer::QJMCActivity, time::Number, psi::GMPS, jumps::Vector
         write(f, "jumps", observer.jumps)
         close(f)
     end
+end
+
+
+"""
+    QJMCEntropy(oplist::OpList, st::Sitetypes)
+
+Calculate the entanglement entropy across a trajectory.
+"""
+mutable struct QJMCEntropy
+    times::Vector{Float64}
+    measurements::Vector{Vector{Number}}
+end
+
+function QJMCEntropy()
+    return QJMCEntropy([], [])
+end
+
+function measure!(observer::QJMCEntropy, time::Number, psi::GMPS, jumps::Vector,
+         jumptimes::Vector)
+    push!(observer.times, time)
+    ent = Float64[]
+    for i = 1:length(psi)-1
+        push!(ent, entropy(psi, i))
+    end
+    push!(observer.measurements, ent)
 end

@@ -9,7 +9,7 @@ PEPS rank 1, PEPO rank 2.
 mutable struct GPEPS <: AbstractPEPS
     rank::Int
     dim::Int
-    tensors::Array{Array{ComplexF64, 5}, 2}
+    tensors::Array{Array{ComplexF64}, 2}
 end
 
 function GPEPS(rank::Int, dim::Int, height::Int, length::Int)

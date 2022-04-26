@@ -44,11 +44,11 @@ is truncated at the edge sites.
 """
 function productMPS(sites::Int, A::Array{Complex{Float64}, 3})
     tensors = Array{Complex{Float64}, 3}[]
-    push!(tensors, A[1:1, :, :])
+    push!(tensors, copy(A[1:1, :, :]))
     for i = 2:sites-1
-        push!(tensors, A)
+        push!(tensors, copy(A))
     end
-    push!(tensors, A[:, :, end:end])
+    push!(tensors, copy(A[:, :, end:end]))
     return GMPS(1, size(A)[2], tensors, 0)
 end
 
@@ -86,7 +86,7 @@ MPS.
 """
 function inner(st::Sitetypes, psi::GMPS, oplist::OpList, phi::GMPS)
     # Create a projection on to the MPSs
-    projV = ProjMPS(phi, psi; rank=1, squared=false)
+    projV = ProjMPS(psi, phi; rank=1, squared=false)
 
     # Loop through each site
     expectations = [0.0 + 0.0im for i = 1:length(oplist.sites)]

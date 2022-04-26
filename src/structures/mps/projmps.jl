@@ -85,7 +85,7 @@ function buildright!(projV::ProjMPS, idx::Int)
     # Contract the block with the tensors
     prod = contract(A2, right, 3, length(size(right)))
     for i = 1:length(projV.objects)-2
-        M = projV.objects[1+i][idx]
+        M = projV.objects[length(projV.objects)-i][idx]
         prod = contract(M, prod, [3, 4], [2, length(size(prod))])
     end
     prod = contract(A1, prod, [2, 3], [2, length(size(prod))])
@@ -168,7 +168,7 @@ function project(projV::ProjMPS, A, direction::Bool = 0, nsites::Int = 2)
     # Loop through nsites
     for i = 1:nsites
         # Contract with first vector
-        prod = contract(prod, projV.objects[1][site-1+i], 1+i, 1)
+        prod = contract(prod, conj(projV.objects[1][site-1+i]), 1+i, 1)
 
         # Contract with MPO tensors
         for j = 1:length(projV.objects)-2

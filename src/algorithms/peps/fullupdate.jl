@@ -18,8 +18,9 @@ function fullupdate(psi::GPEPS, H::OpList2d, dt::Number, st::Sitetypes, projecto
 
     # Create the environment
     env = Environment(psi, psi; chi=chi, dropoff=dropoff)
+    renv = ReducedEnvironment(env; hermitian=true, posdef=true)
     projEnvs = [Environment(proj, psi; chi=chiproj) for proj = projectors]
-
+    projRenvs = [ReducedEnvironment(projEnv) for projEnv in projEnvs]
 
     # Measure energies
     function calculateenergy(psi)
@@ -28,10 +29,12 @@ function fullupdate(psi::GPEPS, H::OpList2d, dt::Number, st::Sitetypes, projecto
         return real(sum(inner(st, evalenv, H) / normal))
     end
 
-    function buildenv!(i::Int, j::Int, dir::Bool)
+    function buildenv!(i::Int, j::Int, dir::Bool, dir2::Bool)
         build!(env, i, j, dir)
-        for projEnv = projEnvs
-            build!(projEnv, i, j, dir)
+        build!(renv, dir2)
+        for k = 1:length(projEnvs)
+            build!(projEnvs[k], i, j, dir)
+            build!(projRenvs[k], dir2)
         end
     end
 
@@ -48,7 +51,7 @@ function fullupdate(psi::GPEPS, H::OpList2d, dt::Number, st::Sitetypes, projecto
             j = 1
             while j < N
                 # Optimize
-                buildenv!(i, j, false)
+                buildenv!(i, j, false, false)
                 maxchi = max(maxchi, maxbonddim(env))
                 gate = getgate(gates, i, j, false)
                 if gate != 0
@@ -59,15 +62,12 @@ function fullupdate(psi::GPEPS, H::OpList2d, dt::Number, st::Sitetypes, projecto
                 end
                 j += 2
             end
-            buildenv!(i, N, false)
+            buildenv!(i, N, false, true)
 
             j = N - 2
             while j > 1
                 # Optimize
-                build!(env, i, j+1, false)
-                for projEnv = projEnvs
-                    build!(projEnv, i, j+1, false)
-                end
+                buildenv!(i, j+1, false, true)
                 maxchi = max(maxchi, maxbonddim(env))
                 gate = getgate(gates, i, j, false)
                 if gate != 0
@@ -83,7 +83,7 @@ function fullupdate(psi::GPEPS, H::OpList2d, dt::Number, st::Sitetypes, projecto
             j = 1
             while j < N
                 # Optimize
-                buildenv!(j, i, true)
+                buildenv!(j, i, true, false)
                 maxchi = max(maxchi, maxbonddim(env))
                 gate = getgate(gates, j, i, true)
                 if gate != 0
@@ -92,13 +92,13 @@ function fullupdate(psi::GPEPS, H::OpList2d, dt::Number, st::Sitetypes, projecto
                 end
                 j += 2
             end
-            buildenv!(N, i, true)
+            buildenv!(N, i, true, true)
             maxchi = max(maxchi, maxbonddim(env))
 
             j = N - 2
             while j > 1
                 # Optimize
-                buildenv!(j+1, i, true)
+                buildenv!(j+1, i, true, true)
                 maxchi = max(maxchi, maxbonddim(env))
                 gate = getgate(gates, j, i, true)
                 if gate != 0
@@ -117,7 +117,7 @@ function fullupdate(psi::GPEPS, H::OpList2d, dt::Number, st::Sitetypes, projecto
         iter += 1
         converge = (iter >= maxiter && maxiter != 0) ? true : converge
         if iter % saveiter == 0
-            buildenv!(1, 1, false)
+            buildenv!(1, 1, false, false)
             maxchi = max(maxchi, maxbonddim(env))
             energy = calculateenergy(psi)
             diff = (energy-lastenergy) / (saveiter * dt)

@@ -1,4 +1,5 @@
 mutable struct MPSProjector <: AbstractMPS
+    rank::Int
     dim::Int
     leftMPS::GMPS
     rightMPS::GMPS
@@ -21,12 +22,13 @@ function MPSProjector(left::GMPS, right::GMPS; kwargs...)
     constant = constant == 0.0 ? inner(left, right) : constant
 
     # Create the projection
-    return MPSProjector(dim(left), left, right, constant)
+    return MPSProjector(2, dim(left), left, right, constant)
 end
 
 function MPSProjector(psi::GMPS; kwargs...)
     return MPSProjector(psi, psi; kwargs...)
 end
+length(O::MPSProjector) = length(O.left)
 
 
 ### Products

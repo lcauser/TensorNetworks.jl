@@ -1,7 +1,7 @@
 using HDF5
 include("src/TensorNetworks.jl")
 
-N = 10
+N = 6
 cs = [0.1, 0.2, 0.3, 0.4]
 ss = -exp10.(range(-3, stop=0, length=61))
 ss2 = exp10.(range(-5, stop=1, length=121))
@@ -12,7 +12,7 @@ sort!(ss)
 ss = round.(ss, digits=10)
 maxdim = 6
 cutoff = 0
-home = "D:/Test/East Data/2d/PEPS5/"
+home = "D:/East Data/2d/PEPS/"
 
 # Create a list of parameters
 params = []
@@ -91,7 +91,7 @@ direct = string(direct, "s = ", s, ".h5")
 if isfile(direct)
     # Load in the properties
     f = h5open(direct)
-    global psi = read(f, "psi", PEPS)
+    global psi = read(f, "psi", GPEPS)
     global energy = read(f, "scgf")
     completed = read(f, "completed")
     global iter = read(f, "iter")
@@ -196,3 +196,10 @@ if !completed
     end
     close(f)
 end
+
+env = Environment(psi, psi)
+build!(env, 4, 3, false)
+renv = ReducedEnvironment(env; squared=false, hermitian=true, posdef=true)
+build!(renv)
+partialcontract!(renv, false)
+fullcontract(renv)

@@ -1,8 +1,8 @@
 function vmps(psi::GMPS, Vs::AbstractProjMPS; kwargs...)
     # Convergence criteria
-    minsweeps::Int = get(kwargs, :minsweeps, 1)
-    maxsweeps::Int = get(kwargs, :maxsweeps, 100)
-    tol::Float64 = get(kwargs, :tol, 1e-8)
+    minsweeps::Int = get(kwargs, :minsweeps, 2)
+    maxsweeps::Int = get(kwargs, :maxsweeps, 200)
+    tol::Float64 = get(kwargs, :tol, 1e-9)
     numconverges::Float64 = get(kwargs, :numconverges, 1)
     verbose::Bool = get(kwargs, :verbose, 0)
 
@@ -14,12 +14,16 @@ function vmps(psi::GMPS, Vs::AbstractProjMPS; kwargs...)
 
     # Calculate the cost & bond dimension
     function calculatecost()
+        #println("----")
         normal = norm(psi)^2
+        #println(normal)
         projcost = calculate(Vs)
+        #println(projcost)
         return normal - 2*abs(projcost)
     end
     diff(x, y) = abs(x) < 1e-10 ? abs(x-y) : abs((x - y) / x)
     lastcost = calculatecost()
+    #println(lastcost)
     D = maxbonddim(psi)
     lastD = copy(D)
 
@@ -41,21 +45,17 @@ function vmps(psi::GMPS, Vs::AbstractProjMPS; kwargs...)
             # Get the contracted tensors
             A0 = psi[site1]
             for i = 1:nsites-1
-                A0 = contract(A0, psi[site1+i], 2+i, 1)
+                A0 = contract(A0, psi[site1+i], 1+psi.rank+i, 1)
             end
 
             # Calculate the vector
-            vec = project(Vs, A0, direction, nsites)
-
-            # Project out
-            #f(x) = project(Ms, x, direction, nsites)
-            #println(f(vec))
-            #vec, info = linsolve(f, vec, A0, maxiter=kryloviter,
-            #                     krylovdim=krylovdim)
+            vec = conj(project(Vs, A0, direction, nsites))
 
             # Replace
             replacesites!(psi, vec, site1, direction; cutoff=cutoff,
                           maxdim=maxdim, mindim=mindim)
+            #println(calculatecost())
+            #println(site)
         end
         # Reverse direction, build projector blocks to the end
         movecenter!(Vs, direction ? 1 : length(psi))
@@ -67,6 +67,7 @@ function vmps(psi::GMPS, Vs::AbstractProjMPS; kwargs...)
         cost = calculatecost()
         if sweeps >= minsweeps
             difference = diff(cost, lastcost)
+            #println(difference)
             if difference < tol && lastD == D
                 convergedsweeps += 1
             else
@@ -88,7 +89,6 @@ function vmps(psi::GMPS, Vs::AbstractProjMPS; kwargs...)
                    real(cost), D)
         end
     end
-    #println(difference)
     return psi
 end
 

@@ -1,11 +1,19 @@
-function contract(x, y, idx1::Int, idx2::Int)
+# Provides utilities to contract and manipulate tensors
+
+"""
+    contract(x::Array{}, y::Array{}, idx1::Int, idx2::Int)
+    contract(x::Array{}, y::Array{}, idxs1::Vector{Int}, idxs2::Vector{Int})
+
+Contract two tensors across specified indexs.
+"""
+function contract(x::Array{}, y::Array{}, idx1::Int, idx2::Int)
     sz = length(size(x))
     dims1 = [i == idx1 ? 0 : i for i = 1:sz]
     dims2 = [j == idx2 ? 0 : sz + j for j = 1:length(size(y))]
     return tensorcontract(x, dims1, y, dims2)
 end
 
-function contract(x, y, idxs1::Vector{Int}, idxs2::Vector{Int})
+function contract(x::Array{}, y::Array{}, idxs1::Vector{Int}, idxs2::Vector{Int})
     length(idxs1) != length(idxs2) && error("The length of contracting indexs differ.")
     labels = [-i for i = 1:length(idxs1)]
     dims1 = [i in idxs1 ? -findall(x -> x == i, idxs1)[1] : i for i = 1:length(size(x))]
@@ -13,7 +21,13 @@ function contract(x, y, idxs1::Vector{Int}, idxs2::Vector{Int})
     return tensorcontract(x, dims1, y, dims2)
 end
 
-function tensorproduct(x, y)
+
+"""
+    tensorproduct(x::Array{}, y::Array{})
+
+Compute the tensor product of two tensors.
+"""
+function tensorproduct(x::Array{}, y::Array{})
     sz1 = length(size(x))
     sz2 = length(size(y))
 
@@ -25,16 +39,27 @@ function tensorproduct(x, y)
 end
 
 
-function trace(x, idx1, idx2)
+"""
+    trace(x::Array{}, idx1::Int, idx2::Int)
+
+Trace over two indices in a tensor.
+"""
+function trace(x::Array{}, idx1::Int, idx2::Int)
     sz = length(size(x))
     return tensortrace(x, [i == idx1 || i == idx2 ? 0 : i for i = 1:sz])
 end
 
 
-function combineidxs(x, idxs::Vector{})
+"""
+    combineidxs(x::Array{}, idxs::Vector{})
+
+Join two indices in a tensor. Returns the new tensor, and the key to returning
+its original structure.
+"""
+function combineidxs(x::Array{}, idxs::Vector{})
     # Make a copy and get the dimensions of the grouping indexs
     y = copy(x)
-    idxs = sort(idxs)
+    #idxs = sort(idxs)
     dims = size(x)[idxs]
 
     # Permute indexs to the end
@@ -49,7 +74,13 @@ function combineidxs(x, idxs::Vector{})
     return reshape(y, tuple(newshape...)), (copy(idxs), dims)
 end
 
-function uncombineidxs(x, cmb)
+
+"""
+    uncombineidxs(x::Array{}, cmb)
+
+Return a tensor whose indexs have been combined to its original structure.
+"""
+function uncombineidxs(x::Array{}, cmb)
     # Make a copy
     y = copy(x)
     offset = length(size(y))
@@ -67,7 +98,13 @@ function uncombineidxs(x, cmb)
     return y
 end
 
-function moveidx(x, currentidx::Int, newidx::Int)
+
+"""
+    moveidx(x::Array{}, currentidx::Int, newidx::Int)
+
+Permute the indexs in a tensor.
+"""
+function moveidx(x::Array{}, currentidx::Int, newidx::Int)
     # Check to see if they're the same
      currentidx == newidx && return copy(x)
 
@@ -95,7 +132,12 @@ function moveidx(x, currentidx::Int, newidx::Int)
 end
 
 
-function svd(x, idx::Int; kwargs...)
+"""
+    svd(x::Array{}, idx::Int; kwargs...)
+
+Perform a singular value decomposition on a tensor at a given dimension.
+"""
+function svd(x::Array{}, idx::Int; kwargs...)
     # Get truncation parameters
     cutoff::Float64 = get(kwargs, :cutoff, 0)
     maxdim::Int = get(kwargs, :maxdim, 0)
@@ -121,15 +163,11 @@ function svd(x, idx::Int; kwargs...)
     try
         t = svd(y, alg=LinearAlgebra.DivideAndConquer())
     catch e
-        #println(size(x))
-        #println(size(y))
         t = svd(y, alg=LinearAlgebra.QRIteration())
     end
     # Assign SVD to individiual matrices
     U = t.U
     S = t.S
-    #println("-------")
-    #println(S)
     V = t.Vt
 
     # Determine the number of singular values to keep
@@ -152,7 +190,6 @@ function svd(x, idx::Int; kwargs...)
     U = U[:, 1:vals]
     S = diagm(S[1:vals])
     V = V[1:vals, :]
-    #println(S)
 
     # Ungroup indexs
     U = moveidx(U, 2, 1)
@@ -161,8 +198,12 @@ function svd(x, idx::Int; kwargs...)
     return U, S, V
 end
 
+"""
+    qr(x::Array{}, idx::Int)
 
-function qr(x, idx::Int)
+Perform a QR decomposition on a tensor at a given dimension.
+"""
+function qr(x::Array{}, idx::Int)
     # Make a copy, get the dimensions
     y = copy(x)
     sz = length(size(y))
@@ -189,8 +230,12 @@ function qr(x, idx::Int)
     return Q, R
 end
 
+"""
+    lq(x::Array{}, idx::Int)
 
-function lq(x, idx::Int)
+Perform a LQ decomposition on a tensor at a given dimension.
+"""
+function lq(x::Array{}, idx::Int)
     # Make a copy, get the dimensions
     y = copy(x)
     sz = length(size(y))
@@ -215,20 +260,24 @@ function lq(x, idx::Int)
     return L, Q
 end
 
+"""
+    flatten(x::Array{})
 
-function flatten(x)
+Flatten an array into a vector.
+"""
+function flatten(x::Array{})
     return reshape(x, (prod(size(x))))
 end
 
 
 """
-    exp(x, outeridxs::Vector{Int})
-    exp(x, outeridx::Int)
+    exp(x::Array{}, outeridxs::Vector{Int})
+    exp(x::Array{}, outeridx::Int)
 
 Calculate the exponential of a tensor with the specified tensors being the outer
 index.
 """
-function exp(x, outeridxs::Vector{Int})
+function exp(x::Array{}, outeridxs::Vector{Int})
     # Group indexs together
     x, cmb1 = combineidxs(x, outeridxs)
     x, cmb2 = combineidxs(x, [i for i=1:length(size(x))-1])
@@ -245,6 +294,6 @@ function exp(x, outeridxs::Vector{Int})
     return x
 end
 
-function exp(x, outeridx::Int)
+function exp(x::Array{}, outeridx::Int)
     return exp(x, [outeridx])
 end

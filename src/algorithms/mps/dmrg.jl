@@ -130,6 +130,7 @@ function dmrg(psi::GMPS, Hs::GMPS...; kwargs...)
     d = dim(psi)
     N = length(psi)
     rank(psi) != 1 && error("Psi must be a GMPS of rank 1 (vector).")
+    movecenter!(psi, 1)
 
     # Construct effective Hamiltonian
     ProjHs = ProjMPS[]
