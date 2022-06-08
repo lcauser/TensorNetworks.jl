@@ -6,7 +6,7 @@ include("EastUtils.jl")
 N = 20
 c = 0.05
 dt = 0.01
-tmax = 100.0
+tmax = 1.0
 cutoff = 0
 
 # Create lattice type
@@ -18,7 +18,7 @@ gates = trotterize(sh, H, dt)
 
 total_Zs = []
 
-for D = [4, 8, 16, 32]
+@time for D = [8]
     # Create initial MPO
     U = productMPO(sh, ["id" for i = 1:N])
     movecenter!(U, 1)

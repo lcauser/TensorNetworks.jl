@@ -1,8 +1,8 @@
 function dmrgx(psi::GMPS, Hs::ProjMPSSum; kwargs...)
     # DMRG options
     nsites::Int = get(kwargs, :nsites, 2)
-    krylovdim::Int = get(kwargs, :krylovdim, 3)
-    kryloviter::Int = get(kwargs, :kryloviter, 2)
+    krylovdim::Int = get(kwargs, :krylovdim, 100)
+    kryloviter::Int = get(kwargs, :kryloviter, 100)
     ishermitian::Bool = get(kwargs, :ishermitian, true)
 
     # Convergence criteria
@@ -21,6 +21,9 @@ function dmrgx(psi::GMPS, Hs::ProjMPSSum; kwargs...)
     # Create projection of inner product of psi and psi
     projnorm = ProjMPS(psi, psi; squared=false, rank=1)
     movecenter!(projnorm, 1)
+    initial = deepcopy(psi)
+    projinitial = ProjMPS(initial, psi; squared=false, rank=1)
+    movecenter!(projinitial, 1)
 
     # Calculate the cost & bond dimension
     cost = calculate(Hs)
@@ -44,6 +47,7 @@ function dmrgx(psi::GMPS, Hs::ProjMPSSum; kwargs...)
             # Build the projector blocks
             movecenter!(Hs, site)
             movecenter!(projnorm, site)
+            movecenter!(projinitial, site)
 
             # Get the contracted tensors
             A0 = psi[site1]
@@ -53,16 +57,16 @@ function dmrgx(psi::GMPS, Hs::ProjMPSSum; kwargs...)
 
             # Construct the effective hamilonian and solve
             Heff(x) = product(Hs, x, direction, nsites)
-            eig, vec = eigsolve(Heff, A0, 1, :SR, maxiter=kryloviter,
-                                krylovdim=krylovdim, ishermitian=ishermitian,
+            eig, vec = eigsolve(Heff, A0, 1, :SR, krylovdim=prod(size(A0)), ishermitian=ishermitian,
                                 tol=1e-14)
             #eig, vec = eigs(Heff; nev=1, ncv=3, tol=0.1, v0=flatten(A0), which=:SR)
 
             # Determine overlaps
             overlaps = []
             for i = 1:length(vec)
-                push!(overlaps, abs(product(projnorm, vec[i], direction, nsites))^2)
+                push!(overlaps, abs(product(projinitial, vec[i], direction, nsites))^2)
             end
+            println(maximum(overlaps))
 
             # Find maximum overlap and update
             idx = argmax(overlaps)
@@ -74,6 +78,7 @@ function dmrgx(psi::GMPS, Hs::ProjMPSSum; kwargs...)
         # Reverse direction, build projector blocks to the end
         movecenter!(Hs, direction ? 1 : length(psi))
         movecenter!(projnorm, direction ? 1 : length(psi))
+        movecenter!(projinitial, direction ? 1 : length(psi))
         direction = !direction
 
         # Check convergence

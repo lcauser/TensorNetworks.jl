@@ -4,6 +4,10 @@ export
     tensorproduct,
     trace,
     exp,
+    svd,
+    combineidxs,
+    uncombineidxs,
+    moveidx,
 
     #sitetypes.jl: Creating bases for lattice
     Sitetypes,
@@ -68,6 +72,14 @@ export
     trace,
     addMPOs,
 
+    #stuctures/mps/igmps.jl: generalized infinite matrix product states
+    iGMPS,
+    iMPS,
+    iMPO,
+    buildleft,
+    buildright,
+    randomenv,
+
     #structures/mps/gatelist.jl: gates and trotterization
     GateList,
     gatesize,
@@ -115,4 +127,18 @@ export
     qjmc_simulation,
     QJMCOperators,
     QJMCActivity,
-    QJMCEntropy
+    QJMCEntropy,
+
+    #algorithms/mps/itebd.jl: tebd for imps
+    iTEBDObserver,
+    itebd,
+    iTEBDNorm,
+
+    ##### Generalized infinite matrix produict staets ###
+    #structures/mps/igmps.jl: infininte matrix product states
+    iGMPS,
+    iMPS,
+    iMPO,
+
+    #algorithms/mps/itebd.jl: tebd for infinite mps
+    itebd

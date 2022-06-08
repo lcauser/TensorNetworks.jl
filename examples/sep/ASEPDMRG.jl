@@ -1,16 +1,14 @@
 #using .TensorNetworks
-include("EastUtils.jl")
 
 # Model parameters
-N = 1000
-s = -1.0
-c = 0.5
+N = 20
+p = 0.7
 
 # Create lattice type
 sh = spinhalf()
 
 # Create hamiltonian
-H = EastHamiltonian(N, c, s) # Create op list
+H = OpList(N)
 H = MPO(sh, H) # Convert to MPO
 
 # Create initial guess

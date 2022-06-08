@@ -120,3 +120,11 @@ function add!(oplist::OpList2d, ops::Vector{String}, sites::Vector{Int},
     push!(oplist.coeffs, coeff)
     push!(oplist.directions, direction)
 end
+
+function *(x::Number, y::OpList2d)
+    y = deepcopy(y)
+    for i = 1:length(y.coeffs)
+        y.coeffs[i] *= x
+    end
+    return y
+end

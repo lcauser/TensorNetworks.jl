@@ -57,6 +57,12 @@ include("lattices/qkcms.jl")
 
 
 ######################################
+# Infinite MPS
+include("structures/mps/igmps.jl")
+include("algorithms/mps/itebd.jl")
+
+
+######################################
 # PEPS Structures
 include("structures/peps/oplist2d.jl")
 include("structures/peps/gates2d.jl")
