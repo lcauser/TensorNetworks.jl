@@ -62,6 +62,12 @@ function fullupdate(psi::GPEPS, H::OpList2d, dt::Number, st::Sitetypes, projecto
                 end
                 j += 2
             end
+
+            # Final site gate 
+            gate = getgate(gates, i, N, false)
+            if gate !=0
+                psi[i, N] = contract(psi[i, N], gate, 5, 2)
+            end
             buildenv!(i, N, false, true)
 
             j = N - 2
@@ -91,6 +97,12 @@ function fullupdate(psi::GPEPS, H::OpList2d, dt::Number, st::Sitetypes, projecto
                     maxcost = max(cost, maxcost)
                 end
                 j += 2
+            end
+
+            # Final site gate 
+            gate = getgate(gates, N, i, true)
+            if gate !=0
+                psi[N, i] = contract(psi[N, i], gate, 5, 2)
             end
             buildenv!(N, i, true, true)
             maxchi = max(maxchi, maxbonddim(env))
@@ -142,6 +154,7 @@ function optimize(env::Environment, gate, site11::Int, site12::Int, dir::Bool, p
     tol::Float64 = get(kwargs, :update_tol, 1e-10)
     cutoff::Float64 = get(kwargs, :cutoff, 1e-6)
     maxdim = get(kwargs, :maxdim, 1)
+    mindim = get(kwargs, :mindim, 1)
 
     # Find the sites
     site21 = site11 + dir
@@ -171,14 +184,14 @@ function optimize(env::Environment, gate, site11::Int, site12::Int, dir::Bool, p
         for i = 1:length(projEnvs)
             cost += overlapproj(renvProjs[i], R1, R2)
         end
-        return real(cost)
+        return real(cost / normalFull)
     end
     costoriginal = calculatecost(R1, R2)
 
     # Find initial guesses via svd
     prod, cmb1 = combineidxs(fulltensor, [1, 2])
     prod, cmb1 = combineidxs(prod, [1, 2])
-    R1, S, R2 = svd(prod, 2; cutoff=cutoff, maxdim=maxdim)
+    R1, S, R2 = svd(prod, 2; cutoff=cutoff, maxdim=maxdim, mindim=mindim)
     R1 = contract(R1, sqrt.(S), 2, 1)
     R2 = contract(sqrt.(S), R2, 2, 1)
     R1 = moveidx(R1, 1, 2)
@@ -308,6 +321,7 @@ function optimize(env::Environment, gate, site11::Int, site12::Int, dir::Bool, p
     else
         cost = costoriginal
     end
+    #println(cost)
     return cost
 end
 

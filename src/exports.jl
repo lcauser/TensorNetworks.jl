@@ -84,7 +84,9 @@ export
     GateList,
     gatesize,
     trotterize,
+    applygate,
     applygate!,
+    applygates
     applygates!,
 
     #structures/mps/projector.jl: projects out of MPS

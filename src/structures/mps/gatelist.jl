@@ -121,17 +121,17 @@ function trotterize(st::Sitetypes, ops::OpList, dt::Float64; kwargs...)
 end
 
 """
-    applygate!(psi::GMPS, site::Int, gate, direction::Bool = false; kwargs...)
+    applygate(psi::GMPS, site::Int, gate, direction::Bool = false; kwargs...)
 
 Apply a gate to the MPS at a starting site. Specify a direction to move the
-gauge after truncation.
+gauge after truncation. Returns the error from truncation.
 
 Key arguments:
     - cutoff::Float64 : truncation cutoff error
     - maxdim::Int : maximum truncation bond dimension
     - mindim::Int : minimum truncation bond dimension.
 """
-function applygate!(psi::GMPS, site::Int, gate, direction::Bool = false; kwargs...)
+function applygate(psi::GMPS, site::Int, gate, direction::Bool = false; kwargs...)
     # Find the interaction range of the gate
     rng = gatesize(gate)
 
@@ -151,11 +151,39 @@ function applygate!(psi::GMPS, site::Int, gate, direction::Bool = false; kwargs.
     end
 
     # Replace the tensors
-    replacesites!(psi, prod, site, direction; kwargs...)
+    replacesites!(psi, prod, site, direction, false; kwargs...)
+    
+    # Calculate error
+    prod_err = psi[site]
+    for i = 1:rng-1
+        prod_err = contract(prod_err, psi[site+i], length(size(prod_err)), 1)
+    end
+    error = contract(conj(prod), prod_err, [i for i=1:length(size(prod))], [i for i=1:length(size(prod))])
+    return abs.(error)^2
 end
 
 
-function applygates!(psi::GMPS, gates::GateList; kwargs...)
+"""
+    applygate!(psi::GMPS, site::Int, gate, direction::Bool = false; kwargs...)
+
+Apply a gate to the MPS at a starting site. Specify a direction to move the
+gauge after truncation.
+
+Key arguments:
+    - cutoff::Float64 : truncation cutoff error
+    - maxdim::Int : maximum truncation bond dimension
+    - mindim::Int : minimum truncation bond dimension.
+"""
+function applygate!(psi::GMPS, site::Int, gate, direction::Bool = false; kwargs...)
+    error = applygate(psi, site, gate, direction; kwargs...)
+end
+
+
+
+function applygates(psi::GMPS, gates::GateList; kwargs...)
+    # Error terms 
+    error = 1
+
     # Apply the sequences in order
     for row = 1:length(gates.gates)
         # Determine the first and last site to be acted on
@@ -179,8 +207,14 @@ function applygates!(psi::GMPS, gates::GateList; kwargs...)
             movecenter!(psi, ctr; kwargs...)
 
             # Apply the gate
-            applygate!(psi, gates.sites[row][gate], gates.gates[row][gate],
-                       direction; kwargs...)
+            error *= applygate(psi, gates.sites[row][gate], gates.gates[row][gate],
+                               direction; kwargs...)
         end
     end
+
+    return error
+end
+
+function applygates!(psi::GMPS, gates::GateList; kwargs...)
+    error = applygates(psi, gates; kwargs...)
 end
