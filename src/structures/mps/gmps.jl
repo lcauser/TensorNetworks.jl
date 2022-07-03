@@ -169,12 +169,12 @@ end
 
 ### Replace the sites within a MPS with a contraction of multiple sites
 """
-    replacesites!(psi::GMPS, A, site::Int, direction::Bool = false; kwargs...)
+    replacesites!(psi::GMPS, A, site::Int, direction::Bool = false, normalize::Bool = false; kwargs...)
 
 Replace the sites from a site onwards, with a contraction of tensors. Specify
 a direction to move the gauge.
 """
-function replacesites!(psi::GMPS, A, site::Int, direction::Bool = false; kwargs...)
+function replacesites!(psi::GMPS, A, site::Int, direction::Bool = false, normalize::Bool = false; kwargs...)
     # Determine the number of sites
     nsites::Int = (length(size(A)) - 2) / rank(psi)
 
@@ -183,6 +183,9 @@ function replacesites!(psi::GMPS, A, site::Int, direction::Bool = false; kwargs.
         psi[site] = A
         if 0 < (site + 1 - 2*direction) && (site + 1 - 2*direction) <= length(psi)
             movecenter!(psi, site + 1 - 2*direction)
+        end
+        if normalize
+            normalize!(psi)
         end
         return nothing
     end
@@ -235,6 +238,9 @@ function replacesites!(psi::GMPS, A, site::Int, direction::Bool = false; kwargs.
     site1 = direction ? site : site + nsites - 1
     psi[site1] = U
     psi.center = site1
+    if normalize
+        normalize!(psi)
+    end
     return true
 end
 
