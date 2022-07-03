@@ -130,6 +130,7 @@ Key arguments:
     - cutoff::Float64 : truncation cutoff error
     - maxdim::Int : maximum truncation bond dimension
     - mindim::Int : minimum truncation bond dimension.
+    - error::Bool : Return error?
 """
 function applygate(psi::GMPS, site::Int, gate, direction::Bool = false; kwargs...)
     # Find the interaction range of the gate
@@ -154,12 +155,17 @@ function applygate(psi::GMPS, site::Int, gate, direction::Bool = false; kwargs..
     replacesites!(psi, prod, site, direction, false; kwargs...)
     
     # Calculate error
-    prod_err = psi[site]
-    for i = 1:rng-1
-        prod_err = contract(prod_err, psi[site+i], length(size(prod_err)), 1)
+    error::Bool = get(kwargs, :error, true)
+    if error
+        prod_err = psi[site]
+        for i = 1:rng-1
+            prod_err = contract(prod_err, psi[site+i], length(size(prod_err)), 1)
+        end
+        error = contract(conj(prod), prod_err, [i for i=1:length(size(prod))], [i for i=1:length(size(prod))])
+        return abs.(error)^2
+    else
+        return 0
     end
-    error = contract(conj(prod), prod_err, [i for i=1:length(size(prod))], [i for i=1:length(size(prod))])
-    return abs.(error)^2
 end
 
 
@@ -175,7 +181,7 @@ Key arguments:
     - mindim::Int : minimum truncation bond dimension.
 """
 function applygate!(psi::GMPS, site::Int, gate, direction::Bool = false; kwargs...)
-    error = applygate(psi, site, gate, direction; kwargs...)
+    error = applygate(psi, site, gate, direction; error=false, kwargs...)
 end
 
 
@@ -216,5 +222,5 @@ function applygates(psi::GMPS, gates::GateList; kwargs...)
 end
 
 function applygates!(psi::GMPS, gates::GateList; kwargs...)
-    error = applygates(psi, gates; kwargs...)
+    error = applygates(psi, gates; error=false, kwargs...)
 end
