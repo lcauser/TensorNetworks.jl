@@ -155,8 +155,8 @@ function applygate(psi::GMPS, site::Int, gate, direction::Bool = false; kwargs..
     replacesites!(psi, prod, site, direction, false; kwargs...)
     
     # Calculate error
-    error::Bool = get(kwargs, :error, true)
-    if error
+    err::Bool = get(kwargs, :error, true)
+    if err
         prod_err = psi[site]
         for i = 1:rng-1
             prod_err = contract(prod_err, psi[site+i], length(size(prod_err)), 1)

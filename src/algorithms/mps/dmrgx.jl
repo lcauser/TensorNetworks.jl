@@ -71,7 +71,7 @@ function dmrgx(psi::GMPS, Hs::ProjMPSSum; kwargs...)
             # Find maximum overlap and update
             idx = argmax(overlaps)
             cost = eig[idx]
-            replacesites!(psi, vec[idx], site1, direction; cutoff=cutoff,
+            replacesites!(psi, vec[idx], site1, direction, true; cutoff=cutoff,
                           maxdim=maxdim, mindim=mindim)
 
         end

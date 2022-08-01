@@ -54,7 +54,7 @@ function dmrg(psi::GMPS, Hs::ProjMPSSum; kwargs...)
             #eig, vec = eigs(Heff; nev=1, ncv=3, tol=0.1, v0=flatten(A0), which=:SR)
             cost = eig[1]
             # Replace
-            replacesites!(psi, vec[1], site1, direction; cutoff=cutoff,
+            replacesites!(psi, vec[1], site1, direction, true; cutoff=cutoff,
                           maxdim=maxdim, mindim=mindim)
 
         end

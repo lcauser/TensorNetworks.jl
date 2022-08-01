@@ -8,6 +8,7 @@ module TensorNetworks
 #####################################
 # External packages
 #
+using MKL
 using HDF5
 using KrylovKit
 using LinearAlgebra
