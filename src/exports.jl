@@ -49,6 +49,7 @@ export
     normalize!,
     movecenter!,
     truncate!,
+    #expand!,
     conj,
     entropy,
     randomGMPS,
@@ -143,4 +144,65 @@ export
     iMPO,
 
     #algorithms/mps/itebd.jl: tebd for infinite mps
-    itebd
+    itebd,
+
+
+    ##### Generalized projected entangled pair states #####
+    #structures/peps/oplist2d.jl: Lists of operators in 2d lattices
+    OpList2d,
+    totensor,
+    siteindexs,
+    sitetensor,
+
+    #structures/peps/gates2d.jl : 2d Gates
+    gates2d,
+    trotterize,
+    getgate,
+
+    #structures/peps/abstractpeps.jl
+    AbstractPEPS,
+
+    #structures/peps/gpeps.jl: generalized peps
+    GPEPS,
+    productPEPS,
+    randomGPEPS,
+    rescale!,
+    reducedtensor,
+    
+    #structures/peps/peps.jl: PEPS
+    PEPS,
+    productPEPS,
+    randomPEPS,
+
+    #structures/peps/pepo.jl: PEPOS
+    PEPO,
+    productPEPO,
+    randomPEPO,
+
+    #structures/peps/environment.jl: MPS environments
+    Environment,
+    blocksizes,
+    block,
+    MPSblock,
+    buildenv!,
+    ReducedTensorEnv,
+    ReducedTensorSingleEnv,
+
+    #structures/peps/reducedenvironment.jl: Reduced Tensor Environments
+    #ReducedEnvironment,
+    #reducedtensors!,
+
+    #structures/peps/ProjbMPS.jl: Boundary MPS
+    ProjbMPS,
+
+    #algorithms/peps/simpleupdate.jl: Simple update 
+    simpleupdate,
+
+    #algorithms/peps/fullupdate.jl: Full update 
+    fullupdate,
+
+    #algorithms/peps/vpeps.jl: Variational update 
+    vpeps
+    
+
+

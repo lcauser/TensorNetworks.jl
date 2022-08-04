@@ -410,10 +410,19 @@ function inner(env::Environment, ops::Vector{Array{ComplexF64, 2}},
 end
 
 function inner(env::Environment, st::Sitetypes, ops::Vector{String},
-               sites::Vector{Int}, direction::Bool=false)
+               sites::Vector{Int}, direction::Bool=false, normalize::Bool=true)
     # Calculate the operator list
     newops = [op(st, ops[i]) for i = 1:length(ops)]
-    return inner(env, newops, sites, direction)
+
+    # Do the contraction 
+    prod = inner(env, newops, sites, direction)
+
+    # Normalize 
+    if normalize 
+        newops = [op(st, "id") for i = 1:length(ops)]
+        prod /= inner(env, newops, sites, direction)
+    end
+    return prod
 end
 
 function inner(st::Sitetypes, psi::GPEPS, ops::OpList2d, phi::GPEPS; kwargs...)
@@ -424,6 +433,8 @@ function inner(st::Sitetypes, psi::GPEPS, ops::OpList2d, phi::GPEPS; kwargs...)
 end
 
 function inner(st::Sitetypes, env::Environment, ops::OpList2d; kwargs...)
+    # Find to normalize
+    normalize = get(kwargs, :normalize, true)
 
     expectations = ComplexF64[0 for i = 1:length(ops.sites)]
     # Loop through each direction
@@ -440,7 +451,7 @@ function inner(st::Sitetypes, env::Environment, ops::OpList2d; kwargs...)
 
                 # Find the expectation of each
                 for idx in idxs
-                    expectations[idx] = inner(env, st, ops.ops[idx], sites, direction)
+                    expectations[idx] = inner(env, st, ops.ops[idx], sites, direction, normalize)
                     expectations[idx] *= ops.coeffs[idx]
                 end
             end
@@ -592,7 +603,7 @@ function ReducedTensorEnv(env::Environment, site1, site2, dir, A1, A2)
     #prod2 = contract(X, X, 1, 1)
 
     prod2 = contract(F.vectors, vals, 2, 1)
-    prod2 = contract(prod2, conj(transpose(F.vectors)), 2, 1)
+    prod2 = contract(prod2, Array(conj(transpose(F.vectors))), 2, 1)
     dims = size(prod)
     prod2 = reshape(prod2, (dims[1]*dims[3], dims[2], dims[4]))
     prod2 = moveidx(prod2, 1, 3)

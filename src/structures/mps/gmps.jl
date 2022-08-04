@@ -112,14 +112,11 @@ function movecenter!(psi::GMPS, idx::Int; kwargs...)
 end
 
 
-### Truncate
+### Adjust bond dimensions
 """
     truncate!(psi::GMPS; kwargs...)
 
-Truncate across the GMPS. Use key arguments:
-    - mindim: minimum bond dimension (default = 1)
-    - maxdim: maximum bond dimension (default = 0, no limit)
-    - cutoff: truncation cutoff error (default = 0)
+Truncate across the GMPS.
 """
 function truncate!(psi::GMPS; kwargs...)
     if psi.center != 1 && psi.center != length(psi)
@@ -128,6 +125,31 @@ function truncate!(psi::GMPS; kwargs...)
     ctr = center(psi) == 1 ? length(psi) : 1
     movecenter!(psi, ctr; kwargs...)
 end
+
+"""
+    expand!(psi::GMPS, bonddim::Int, noise::Float64)
+
+Increase the bond dim of a GMPS. Use key arguments:
+    - mindim: minimum bond dimension (default = 1)
+    - maxdim: maximum bond dimension (default = 0, no limit)
+    - cutoff: truncation cutoff error (default = 0)
+function expand!(psi::GMPS, bonddim::Int, noise::Float64 = 1e-5)
+    movecenter!(psi, 1)
+    for i = 1:length(psi)
+        dims = size(psi[i])
+        dims[1] = i == 1 ? 1 : bonddim 
+        dims[2] = i == length(psi) ? 1 : bonddim
+        tensor = noise * randn(ComplexF64, dims...)
+        tensor[1:size(psi[i])[1], 1:size(psi[i])[2], [: for _ = 1:rank(psi)]...] = psi[i]
+        psi[i] = tensor
+        
+        if i > 1
+            movecenter!(psi, i)
+        end
+    end
+end
+"""
+
 
 """
     conj(psi::GMPS)
