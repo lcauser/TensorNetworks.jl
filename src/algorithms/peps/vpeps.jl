@@ -13,8 +13,7 @@ function vpeps(st::Sitetypes, psi::GPEPS, H::GPEPS, ops::OpList2d; kwargs...)
     # Evaluation of energy
     function calculateenergy()
         env = Environment(psi, psi; chi=chieval)
-        normal = inner(env)
-        return real(sum(inner(st, env, ops) / normal))
+        return real(sum(inner(st, env, ops)))
     end
 
     # Determine size and sweeps

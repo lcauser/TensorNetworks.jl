@@ -21,8 +21,7 @@ function simpleupdate(psi::GPEPS, dt::Real, st::Sitetypes, ops::OpList2d; kwargs
     # Measure energies
     function calculateenergy(psi)
         env = Environment(psi, psi; chi=chi)
-        normal = inner(env)
-        return real(sum(inner(st, env, ops) / normal))
+        return real(sum(inner(st, env, ops)))
     end
 
     # Determine the (square root) singular values of bonds

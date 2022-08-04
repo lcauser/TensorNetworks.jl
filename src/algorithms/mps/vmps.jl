@@ -2,8 +2,8 @@ function vmps(psi::GMPS, Vs::AbstractProjMPS; kwargs...)
     # Convergence criteria
     minsweeps::Int = get(kwargs, :minsweeps, 2)
     maxsweeps::Int = get(kwargs, :maxsweeps, 200)
-    tol::Float64 = get(kwargs, :tol, 1e-9)
-    numconverges::Float64 = get(kwargs, :numconverges, 1)
+    tol::Float64 = get(kwargs, :tol, 1e-10)
+    numconverges::Float64 = get(kwargs, :numconverges, 3)
     verbose::Bool = get(kwargs, :verbose, 0)
 
     # Truncation

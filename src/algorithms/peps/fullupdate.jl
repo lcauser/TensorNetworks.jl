@@ -8,8 +8,8 @@ function fullupdate(psi::GPEPS, H::OpList2d, dt::Number, st::Sitetypes, projecto
     # Get psi properties
     maxdim = get(kwargs, :maxdim, maxbonddim(psi))
     N = size(psi)[1]
-    chi = get(kwargs, :chi, maxdim^2)
-    chieval = get(kwargs, :chi_evaluate, 100)
+    chi::Int = get(kwargs, :chi, maxdim^2)
+    chieval::Int = get(kwargs, :chi_evaluate, 100)
     chiproj::Int = get(kwargs, :chi_proj, maxdim)
     dropoff::Int = get(kwargs, :dropoff, 0)
 
@@ -18,23 +18,23 @@ function fullupdate(psi::GPEPS, H::OpList2d, dt::Number, st::Sitetypes, projecto
 
     # Create the environment
     env = Environment(psi, psi; chi=chi, dropoff=dropoff)
-    renv = ReducedEnvironment(env; hermitian=true, posdef=true)
+    #renv = ReducedEnvironment(env; hermitian=true, posdef=true)
     projEnvs = [Environment(proj, psi; chi=chiproj) for proj = projectors]
-    projRenvs = [ReducedEnvironment(projEnv) for projEnv in projEnvs]
+    #projRenvs = [ReducedEnvironment(projEnv) for projEnv in projEnvs]
+
 
     # Measure energies
     function calculateenergy(psi)
-        evalenv = Environment(psi, psi; chi=chieval)
-        normal = inner(evalenv)
-        return real(sum(inner(st, evalenv, H) / normal))
+        enveval = Environment(psi, psi; chi=chieval)
+        return real(sum(inner(st, enveval, H)))
     end
 
     function buildenv!(i::Int, j::Int, dir::Bool, dir2::Bool)
         build!(env, i, j, dir)
-        build!(renv, dir2)
+        #build!(renv, dir2)
         for k = 1:length(projEnvs)
             build!(projEnvs[k], i, j, dir)
-            build!(projRenvs[k], dir2)
+            #build!(projRenvs[k], dir2)
         end
     end
 
