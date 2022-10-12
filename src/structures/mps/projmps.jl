@@ -210,7 +210,7 @@ function calculate(projV::ProjMPS)
     #println(site)
     #println(size(prod))
     #println(size(right))
-    prod = contract(prod, right, [i for i=1:length(prod)], [i for i=1:length(prod)])
+    prod = contract(prod, right, [i for i=1:length(size(prod))], [i for i=1:length(size(prod))])
 
     return projV.coeff*prod[1]
 end
