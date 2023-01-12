@@ -134,14 +134,15 @@ function dmrg(psi::GMPS, Hs::GMPS...; kwargs...)
 
     # Construct effective Hamiltonian
     ProjHs = ProjMPS[]
+    coeffs::Vector{Float64} = get(kwargs, :coeffs, [1.0 for _ = 1:length(Hs)])
     length(Hs) == 0 && error("You must provide atleast one MPS/MPO for the Hamiltonian.")
     for i = 1:length(Hs)
         length(Hs[i]) != N && error("GMPS must share the same properties.")
         dim(Hs[i]) != d && error("GMPS must share the same properties.")
         if rank(Hs[i]) == 2
-            push!(ProjHs, ProjMPS(psi, Hs[i], psi; rank=2))
+            push!(ProjHs, ProjMPS(psi, Hs[i], psi; rank=2, coeff=coeffs[i]))
         elseif rank(Hs[i]) == 1
-            push!(ProjHs, ProjMPS(Hs[i], psi; rank=2, squared=true))
+            push!(ProjHs, ProjMPS(Hs[i], psi; rank=2, squared=true, coeff=coeffs[i]))
         else
             error("Hamiltonian must be composed of MPOs (rank 2) or MPSs (rank 1).")
         end
