@@ -139,9 +139,9 @@ function product(projV::ProjMPS, A, direction::Bool = 0, nsites::Int = 2)
         # Contract with tensor
         prod2 = projV.squared == true ? conj(prod) : 1
         prod = contract(prod, A, [k for k=1:length(size(prod))], [k for k=1:length(size(prod))])[1]
-        prod *= prod2 * projV.coeff
+        prod *= prod2
     end
-    return prod
+    return prod * projV.coeff
 end
 
 
