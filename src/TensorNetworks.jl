@@ -3,7 +3,7 @@ TensorNetworks is a library which has efficient implementations for tensor
 network architechures and algorithms
 """
 
-#module TensorNetworks
+module TensorNetworks
 
 #####################################
 # External packages
@@ -16,7 +16,7 @@ using LinearAlgebra
 
 #####################################
 # Exports
-#include("exports.jl")
+include("exports.jl")
 
 
 #####################################
