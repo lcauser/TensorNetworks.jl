@@ -136,6 +136,7 @@ export
     iTEBDObserver,
     itebd,
     iTEBDNorm,
+    iTEBDEnergy,
 
     ##### Generalized infinite matrix produict staets ###
     #structures/mps/igmps.jl: infininte matrix product states
