@@ -16,7 +16,7 @@ function itebd(st::Sitetypes, psi::iGMPS, H::OpList, dt::Number, tmax::Number,
     !(evol == "imag" || evol == "real") && error("evol must be real of imag.")
     length(H) != length(psi) && error("The evolution operator list must be the same length as the iMPS.")
     gate = sitetensor(H, st, 1)
-    gate = exp(dt*gate, [2*i for i = 1:length(psi)])
+    gate = exp((evol == "real" ? -1im : 1) * dt*gate, [2*i for i = 1:length(psi)])
 
     # Checks on the iGMPS being evolved
 
@@ -56,6 +56,11 @@ function itebd(st::Sitetypes, psi::iGMPS, H::OpList, dt::Number, tmax::Number,
             end
             @printf("time=%.6f, energy=%.8e, maxbonddim=%d \n",
                     time, real(energy), maxbonddim(psi))
+            
+            # Check if simulation is done
+            for observer = observers
+                checkdone(observer) && return psi
+            end
         end
     end
 
@@ -158,11 +163,11 @@ end
 
 ### Observers
 """
-    checkdone!(observer:<iTEBDObserver)
+    checkdone(observer:<iTEBDObserver)
 
 Check for convergence.
 """
-checkdone!(observer::iTEBDObserver) = false
+checkdone(observer::iTEBDObserver) = false
 
 
 """
@@ -173,6 +178,7 @@ Take a measurement of an observer.
 measure!(observer::iTEBDObserver, time::Number, psi::iGMPS, energy::Number) = true
 
 
+### Norm
 mutable struct iTEBDNorm
     times::Vector{Float64}
     measurements::Vector{Float64}
@@ -186,9 +192,56 @@ end
 function measure!(observer::iTEBDNorm, time::Number, psi::iGMPS, energy::Number)
     push!(observer.times, time)
     push!(observer.measurements, real(norm(psi)))
-    println(observer.measurements[end])
 end
 
-function checkdone!(observer::iTEBDNorm)
+function checkdone(observer::iTEBDNorm)
+    return false
+end
+
+### Energy
+mutable struct iTEBDEnergy
+    times::Vector{Float64}
+    measurements::Vector{Number}
+    tol::Float64
+end
+
+function iTEBDEnergy(tol::Float64 = 1e-8)
+    return iTEBDEnergy([], [], tol)
+end
+
+function measure!(observer::iTEBDEnergy, time::Number, psi::iGMPS, energy::Number)
+    push!(observer.times, time)
+    push!(observer.measurements, energy)
+end
+
+function checkdone(observer::iTEBDEnergy)
+    if length(observer.measurements) > 1
+        minus = abs(observer.measurements[end] - observer.measurements[end-1])
+        plus = abs(observer.measurements[end] + observer.measurements[end-1])
+        diff = plus > 1e-8 ? 2 * minus / plus : minus
+        diff < observer.tol && return true
+    end
+    return false
+end
+
+
+### observables
+mutable struct iTEBDObservables
+    times::Vector{Float64}
+    measurements::Vector{Vector{Number}}
+    st::Sitetypes
+    ops::OpList
+end
+
+function iTEBDObservables(st::Sitetypes, ops::OpList)
+    return iTEBDObservables([], [], st, ops)
+end
+
+function measure!(observer::iTEBDObservables, time::Number, psi::iGMPS, energy::Number)
+    push!(observer.times, time)
+    push!(observer.measurements, inner(observer.st, psi, observer.ops))
+end
+
+function checkdone(observer::iTEBDObservables)
     return false
 end

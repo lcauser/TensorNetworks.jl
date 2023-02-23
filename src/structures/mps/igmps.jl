@@ -87,110 +87,94 @@ function iMPO(length::Int, A::Vector{Vector{ComplexF64}})
     return iMPO(length::Int, convert(Array{ComplexF64, 2}, A))
 end
 
+
+### Building environments
 """
+    buildleft(phi::iGMPS, psi::iGMPS, left::Array{ComplexF64}, j::Int)
     buildleft(psi::iGMPS, left::Array{ComplexF64}, j::Int)
 
 Build on the left block for an environment for an iMPS, for cell
 position j
 """
-function buildleft(psi::iGMPS, left::Array{ComplexF64}, j::Int)
+function buildleft(phi::iGMPS, psi::iGMPS, left::Array{ComplexF64}, j::Int)
     if psi.rank == 1 && psi.squared == true
-        # Wavefunction
-        left = contract(left, diagm(psi.singulars[j]), 1, 1)
-        left = contract(left, diagm(psi.singulars[j]), 1, 1)
-        left = contract(left, conj(psi.tensors[j]), 1, 1)
-        left = contract(left, psi.tensors[j], [1, 2], [1, 2])
+        return buildleft_phi_psi(phi, psi, left, j)
     elseif psi.rank == 1 && psi.squared == false
-        # Probability vector
-        left = contract(left, diagm(psi.singulars[j]), 1, 1)
-        left = contract(left, psi.tensors[j], 1, 1)
-        left = contract(left, ones(ComplexF64, dim(psi)), 1, 1)
+        return buildleft_flat_psi(psi, left, j)
     elseif psi.rank == 2
-        # MPO trace
-        left = contract(left, diagm(psi.singulars[j]), 1, 1)
-        left = contract(left, trace(psi.tensors[j], 2, 3), 1, 1)
+        return buildleft_rho(psi, left, j)
     end
-    return left
 end
-
+buildleft(psi::iGMPS, left::Array{ComplexF64}, j::Int) = buildleft(psi, psi, left, j)
 
 """
+    buildright(phi::iGMPS, psi::iGMPS, right::Array{ComplexF64}, j::Int)
     buildright(psi::iGMPS, right::Array{ComplexF64}, j::Int)
 
 Build on the right block for an environment for an iMPS, for cell
 position j.
 """
-function buildright(psi::iGMPS, right::Array{ComplexF64}, j::Int)
+function buildright(phi::iGMPS, psi::iGMPS, right::Array{ComplexF64}, j::Int)
     if psi.rank == 1 && psi.squared == true
-        # Wavefunction
-        right = contract(psi.tensors[j], right, 3, 2)
-        right = contract(conj(psi.tensors[j]), right, [2, 3], [2, 3])
-        right = contract(diagm(psi.singulars[j]), right, 2, 2)
-        right = contract(diagm(psi.singulars[j]), right, 2, 2)
+        return buildright_phi_psi(phi, psi, right, j)
     elseif psi.rank == 1 && psi.squared == false
-        # Probability vector
-        right = contract(psi.tensors[j], right, 3, 1)
-        right = contract(ones(ComplexF64, dim(psi)), right, 1, 2)
-        right = contract(diagm(psi.singulars[j]), right, 2, 1)
+        return buildright_flat_psi(psi, right, j)
     elseif psi.rank == 2
-        # MPO trace
-        right = contract(trace(psi.tensors[j], 2, 3), right, 2, 1)
-        right = contract(diagm(psi.singulars[j]), right, 2, 1)
+        return buildright_rho(psi, right, j)
     end
-    return right
 end
+buildright(psi::iGMPS, left::Array{ComplexF64}, j::Int) = buildright(psi, psi, left, j)
 
 
 """
     randomenv(psi::iGMPS)
+    randomenv(phi::iGMPS, psi::iGMPS)
 
 Create a random boundary for an iMPS.
 """
+randomenv(phi::iGMPS, psi::iGMPS) = randomenv_phi_psi(phi, psi)
 function randomenv(psi::iGMPS)
-    if psi.rank == 1 && psi.squared == true
-        # Wavefunction
-        left = rand(ComplexF64, size(psi.tensors[1])[1], size(psi.tensors[1])[1])
-        right = rand(ComplexF64, size(psi.tensors[end])[end], size(psi.tensors[end])[end])
+    if psi.rank == 1 && psi.squared == false
+        return randomenv_flat_psi(psi)
+    elseif psi.rank == 1 && psi.squared == true
+        return randomenv_psi(psi)
     else
-        # Probability vector & MPO
-        left = rand(ComplexF64, size(psi.tensors[1])[1])
-        right = rand(ComplexF64, size(psi.tensors[end])[end])
+        return randomenv_rho(psi)
     end
-    return left, right
 end
 
 
 """
+    function build(phi::iGMPS, psi::iGMPS; kwargs...)
     function build!(psi::iGMPS; kwargs...)
 
 Build the environment for an iMPS to perform calculations. Key arguments:
     - tol::Float64 : Convergence tolerance for the environment. Default is 1e-10.
     - maxiter::Int : Maximum number of iterations to build environment by.
 """
-function build!(psi::iGMPS; kwargs...)
+function build(psis::iGMPS...; kwargs...)
+    # Checks on psi 
+    (length(psis) == 0 || length(psis) > 2) && error("Only one or two GMPS supported currently.")
+
     # Get convergence tolerance
     tol::Float64 = get(kwargs, :tol, 1e-10)
     maxiter::Int = get(kwargs, :maxiter, 1000)
 
-    # Vector to store environment
-    lefts = []
-    rights = []
-
     # Make random initial environments
-    left, right = randomenv(psi)
-    norm_cum = log(norm(left)) + log(norm(right))
+    left, right = randomenv(psis...)
+    #norm_cum = log(norm(left)) + log(norm(right))
     left /= norm(left)
     right /= norm(right)
-    idxs = (rank(psi) == 1 && psi.squared == true) ? [1, 2] : 1
-    norm_prev = real(norm_cum + log(contract(left, right, idxs, idxs)[1]))
+    #idxs = (rank(psi) == 1 && psi.squared == true) ? [1, 2] : 1
+    #norm_prev = real(norm_cum + log(contract(left, right, idxs, idxs)[1]))
 
     # Iteratively build left and right blocks and check for convergence
-    for i = 1:maxiter
+    for _ = 1:maxiter
         left_prev = deepcopy(left)
         right_prev = deepcopy(right)
-        for j = 1:length(psi)
-            left = buildleft(psi, left, j)
-            right = buildright(psi, right, length(psi)+1-j)
+        for j = 1:length(psis[1])
+            left = buildleft(psis..., left, j)
+            right = buildright(psis..., right, length(psis[1])+1-j)
         end
         left /= norm(left)
         right /= norm(right)
@@ -203,19 +187,36 @@ function build!(psi::iGMPS; kwargs...)
         converge && break
     end
 
-    psi.lefts = [left]
-    psi.rights = [right]
+    lefts = [left]
+    rights = [right]
 
     # Build the environments to consider all sites
-    for i = 1:length(psi)-1
-        left = buildleft(psi, left, i)
-        right = buildright(psi, right, length(psi)+1-i)
-        push!(psi.lefts, left)
-        push!(psi.rights, right)
+    for i = 1:length(psis[1])-1
+        left = buildleft(psis..., left, i)
+        right = buildright(psis..., right, length(psis[1])+1-i)
+        push!(lefts, left)
+        push!(rights, right)
     end
+
+    return lefts, rights
+end
+
+function build!(psi::iGMPS; kwargs...)
+    lefts, rights = build(psi; kwargs...)
+    psi.lefts = lefts
+    psi.rights = rights
+    return nothing
 end
 
 
+### Calculating observables
+"""
+    inner(st::Sitetypes, psi::iGMPS, ops::OpList)
+    inner(st::Sitetypes, rho::iGMPS, ops::OpList)
+    inner(st::Sitetypes, phi::iGMPS, ops::OpList, psi::iGMPS)
+
+Calculate the observables with respect to iMPS/iMPO.
+"""
 function inner(st::Sitetypes, psi::iGMPS, ops::OpList)
     vals = zeros(ComplexF64, length(ops.ops))
     for i = 1:length(ops.ops)
@@ -224,7 +225,25 @@ function inner(st::Sitetypes, psi::iGMPS, ops::OpList)
     return vals
 end
 
-function inner(st::Sitetypes, psi::iGMPS, ops::Vector{String}, sites::Vector{Int}, coeff::ComplexF64)
+function inner(st::Sitetypes, phi::iGMPS, ops::OpList, psi::iGMPS)
+    vals = zeros(ComplexF64, length(ops.ops))
+    lefts, rights = build(phi, psi)
+    for i = 1:length(ops.ops)
+        vals[i] = inner(st, phi, ops.ops[i], psi, ops.sites[i], ops.coeffs[i], lefts, rights)
+    end
+    return vals
+end
+
+function inner(st::Sitetypes, phi::iGMPS, ops::Vector{String}, psi::iGMPS, sites::Vector{Int}, coeff::ComplexF64; kwargs...)
+    return inner(st, phi, ops, psi, sites, coeff, build(phi, psi)...; kwargs...)
+end
+
+function inner(st::Sitetypes, psi::iGMPS, ops::Vector{String}, sites::Vector{Int}, coeff::ComplexF64; kwargs...)
+    return inner(st, psi, ops, psi, sites, coeff, psi.lefts, psi.rights; kwargs...)
+end
+
+function inner(st::Sitetypes, phi::iGMPS, ops::Vector{String}, psi::iGMPS, sites::Vector{Int}, coeff::ComplexF64,
+               lefts, rights; kwargs...)
     # Determine the range
     rng = sites[end] - sites[1] + 1
 
@@ -232,8 +251,8 @@ function inner(st::Sitetypes, psi::iGMPS, ops::Vector{String}, sites::Vector{Int
     val = 0.0
     for i = 1:length(psi)
         # Find relevent boundaries
-        left = psi.lefts[i]
-        right = psi.rights[length(psi) - ((rng + i) % length(psi))]
+        left = lefts[i]
+        right = rights[length(psi) - ((rng + i) % length(psi))]
 
         # Contract with and without observables
         prod_obs = left
@@ -241,7 +260,9 @@ function inner(st::Sitetypes, psi::iGMPS, ops::Vector{String}, sites::Vector{Int
         for j = 1:rng
             # Determine site and fetch relevent tensors
             site = (j + i - 2) % length(psi) + 1
+            S_phi = diagm(phi.singulars[site])
             S = diagm(psi.singulars[site])
+            A_phi = phi.tensors[site]
             A = psi.tensors[site]
             M = j in sites ? ops[findfirst([j == s for s in sites])] : "id"
             M = op(st, M)
@@ -249,16 +270,16 @@ function inner(st::Sitetypes, psi::iGMPS, ops::Vector{String}, sites::Vector{Int
             # Perform the contractions
             if psi.rank == 1 && psi.squared == true
                 # Contract to find observable
+                prod_obs = contract(prod_obs, S_phi, 1, 1)
                 prod_obs = contract(prod_obs, S, 1, 1)
-                prod_obs = contract(prod_obs, S, 1, 1)
-                prod_obs = contract(prod_obs, conj(A), 1, 1)
+                prod_obs = contract(prod_obs, conj(A_phi), 1, 1)
                 prod_obs = contract(prod_obs, M, 2, 1)
                 prod_obs = contract(prod_obs, A, [1, 3], [1, 2])
 
                 # Contract to find norm
+                prod_norm = contract(prod_norm, S_phi, 1, 1)
                 prod_norm = contract(prod_norm, S, 1, 1)
-                prod_norm = contract(prod_norm, S, 1, 1)
-                prod_norm = contract(prod_norm, conj(A), 1, 1)
+                prod_norm = contract(prod_norm, conj(A_phi), 1, 1)
                 prod_norm = contract(prod_norm, A, [1, 2], [1, 2])
             elseif psi.rank == 1 && psi.squared == false
                 # Contract to find observable
@@ -288,16 +309,23 @@ function inner(st::Sitetypes, psi::iGMPS, ops::Vector{String}, sites::Vector{Int
         idxs = (psi.rank == 1 && psi.squared == true) ? [1, 2] : 1
         prod_obs = contract(prod_obs, right, idxs, idxs)[1]
         prod_norm = contract(prod_norm, right, idxs, idxs)[1]
-        val += prod_obs / prod_norm
+        normal::Bool = get(kwargs, :normalize, true)
+        val += normal ? prod_obs / prod_norm : prod_obs
     end
     return coeff * val / length(psi)
 end
 
+
+"""
+    norm(psi::iGMPS)
+
+Calculate the norm of an iMPS.
+"""
 function norm(psi::iGMPS)
     prod = psi.lefts[1]
     norm = 0
     for i = 1:length(psi)
-        prod = buildleft(psi, prod, i)
+        #prod = buildleft(psi, prod, i)
         norm += (psi.rank == 1 && psi.squared == true) ? 2*psi.norms[i] : psi.norms[i]
     end
     idxs = (psi.rank == 1 && psi.squared == true) ? [1, 2] : 1
@@ -305,4 +333,73 @@ function norm(psi::iGMPS)
     norm += log(prod[1])
     norm -= log(contract(psi.lefts[1], psi.rights[1], idxs, idxs)[1])
     return norm / length(psi)
+end
+
+
+### Specifics for iGMPS 
+function buildleft_phi_psi(phi::iGMPS, psi::iGMPS, left::Array{ComplexF64}, j::Int)
+    left = contract(left, diagm(phi.singulars[j]), 1, 1)
+    left = contract(left, diagm(psi.singulars[j]), 1, 1)
+    left = contract(left, conj(phi.tensors[j]), 1, 1)
+    left = contract(left, psi.tensors[j], [1, 2], [1, 2])
+    return left
+end
+
+function buildleft_flat_psi(psi::iGMPS, left::Array{ComplexF64}, j::Int)
+    left = contract(left, diagm(psi.singulars[j]), 1, 1)
+    left = contract(left, ones(ComplexF64, dim(psi)), 1, 1)
+    left = contract(left, psi.tensors[j], 2, 1)
+    return left
+end
+
+function buildright_phi_psi(phi::iGMPS, psi::iGMPS, right::Array{ComplexF64}, j::Int)
+    right = contract(psi.tensors[j], right, 3, 2)
+    right = contract(conj(phi.tensors[j]), right, [2, 3], [2, 3])
+    right = contract(diagm(psi.singulars[j]), right, 2, 2)
+    right = contract(diagm(phi.singulars[j]), right, 2, 2)
+    return right
+end
+
+function buildright_flat_psi(psi::iGMPS, right::Array{ComplexF64}, j::Int)
+    right = contract(psi.tensors[j], right, 3, 1)
+    right = contract(diagm(psi.singulars[j]), right, 2, 1)
+    right = contract(ones(ComplexF64, dim(psi)), right, 1, 2)
+    return right
+end
+
+function randomenv_phi_psi(phi::iGMPS, psi::iGMPS)
+    left = rand(ComplexF64, size(phi.tensors[1])[1], size(psi.tensors[1])[1])
+    right = rand(ComplexF64, size(phi.tensors[end])[end], size(psi.tensors[end])[end])
+    return left, right
+end
+
+function randomenv_psi(psi::iGMPS)
+    left = rand(ComplexF64, size(psi.tensors[1])[1], size(psi.tensors[1])[1])
+    right = rand(ComplexF64, size(psi.tensors[end])[end], size(psi.tensors[end])[end])
+    return left, right
+end
+
+function randomenv_flat_psi(psi::iGMPS)
+    left = rand(ComplexF64, size(psi.tensors[1])[1])
+    right = rand(ComplexF64, size(psi.tensors[end])[end])
+    return left, right
+end
+
+### Specifics for iGMPO
+function buildleft_rho(rho::iGMPS, left::Array{ComplexF64}, j::Int)
+    left = contract(left, diagm(rho.singulars[j]), 1, 1)
+    left = contract(left, trace(rho.tensors[j], 2, 3), 1, 1)
+    return left
+end
+
+function buildright_rho(rho::iGMPS, right::Array{ComplexF64}, j::Int)
+    right = contract(trace(rho.tensors[j], 2, 3), right, 2, 1)
+    right = contract(diagm(rho.singulars[j]), right, 2, 1)
+    return right
+end
+
+function randomenv_rho(rho::iGMPS)
+    left = rand(ComplexF64, size(rho.tensors[1])[1])
+    right = rand(ComplexF64, size(rho.tensors[end])[end])
+    return left, right
 end
