@@ -241,7 +241,7 @@ function trace(args::GMPS...)
     # Calculate the trace
     prod = ones(ComplexF64, ([1 for i=1:length(args)]...))
     for site = 1:length(args[1])
-        prod = contract(prod, conj(args[1][site]), 1, 1)
+        prod = contract(prod, args[1][site], 1, 1)
         for j = 1:length(args)-1
             prod = contract(prod, args[1+j][site], [1, length(size(prod))-1], [1, 2])
         end
