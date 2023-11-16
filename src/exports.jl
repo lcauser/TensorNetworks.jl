@@ -26,9 +26,19 @@ export
     vectodm,
 
     ##### Generalized quantum states #####
+    #stuctures/qs/abstractqs.jl
     AbstractQS,
+
+    #structures/gqs/gqs.jl
     GQS,
     randomGQS,
+
+    #structures/gs/gs.jl 
+    QS,
+    isQS,
+    randomQS,
+    productQS,
+
 
     ##### generalized Matrix Product States #####
     #structures/mps/oplist.jl: dealing with operators
