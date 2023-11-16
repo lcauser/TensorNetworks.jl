@@ -138,7 +138,7 @@ end
 
 Apply local operators to an MPS.
 """
-function applyop!(st::Sitetypes, psi::GMPS, ops, sites, coeff::Number=1)
+function applyop!(st::Sitetypes, psi::GMPS, ops, sites, coeff::Q=1.0) where Q<:Number
     for i = 1:length(sites)
         # Fetch the tensors
         A = psi[sites[i]]

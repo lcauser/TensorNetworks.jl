@@ -1,6 +1,6 @@
-mutable struct ProjMPS{Q<:Number} <: AbstractProjMPS
+mutable struct ProjMPS{Q<:Number, R<:AbstractArray} <: AbstractProjMPS
     objects::Vector{GMPS}
-    blocks::Vector{Array{Complex{Float64}}}
+    blocks::R
     squared::Bool
     rank::Int
     center::Int
