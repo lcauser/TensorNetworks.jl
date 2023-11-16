@@ -34,6 +34,11 @@ include("sitetypes.jl")
 include("lattices/spinhalf.jl")
 
 ######################################
+# Quantum states (exact...)
+include("structures/qs/abstractqs.jl")
+include("structures/qs/gqs.jl")
+
+######################################
 # MPS Structures
 include("structures/mps/oplist.jl")
 include("structures/mps/abstractmps.jl")
