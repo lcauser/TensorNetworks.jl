@@ -1,5 +1,6 @@
 include("src/TensorNetworks.jl")
 using .TensorNetworks 
+using KrylovKit
 
 N = 10
 s = 0.1
@@ -24,3 +25,6 @@ E3 = inner(psiMPS, HMPO, psiMPS)
 
 psitest = GMPS(psi; cutoff=1e-12)
 Htest = GMPS(H; cutoff=1e-12)
+
+f(x) = H * x
+eig, vec = eigsolve(f, psi, 1, :SR)
