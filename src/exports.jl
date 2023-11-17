@@ -39,6 +39,12 @@ export
     randomQS,
     productQS,
 
+    #structures/gs/go.jl 
+    QO,
+    isQO,
+    randomQO,
+    productQO,
+    applyQO,
 
     ##### generalized Matrix Product States #####
     #structures/mps/oplist.jl: dealing with operators

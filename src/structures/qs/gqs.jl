@@ -59,6 +59,21 @@ function ==(psi1::GQS, psi2::GQS)
     return converge
 end
 
+# Operations to add and subtract
+function +(psi::GQS, phi::GQS)
+    !(psi == phi) && error("GQS must share the same properties.")
+    rho = deepcopy(psi)
+    rho.tensor = psi.tensor .+ phi.tensor 
+    return rho
+end
+
+function -(psi::GQS, phi::GQS)
+    !(psi == phi) && error("GQS must share the same properties.")
+    rho = deepcopy(psi)
+    rho.tensor = psi.tensor .- phi.tensor 
+    return rho
+end
+
 
 ### Entanglement entropy
 """

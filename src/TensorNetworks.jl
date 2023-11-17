@@ -42,6 +42,7 @@ include("structures/mps/oplist.jl")
 include("structures/qs/abstractqs.jl")
 include("structures/qs/gqs.jl")
 include("structures/qs/qs.jl")
+include("structures/qs/qo.jl")
 
 ######################################
 # MPS Structures
