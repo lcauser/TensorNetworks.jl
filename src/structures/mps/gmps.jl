@@ -291,7 +291,30 @@ function randomGMPS(rank::Int, dim::Int, length::Int, bonddim::Int)
 end
 
 
-### bMPS
+### Converting from quantum state to MPS 
+function GMPS(psi::GQS; kwargs...)
+    # Store tensors 
+    tensors = []
+
+    # SVD 
+    tensor = reshape(psi.tensor, (1, size(psi.tensor)..., 1)) 
+    for _ = 1:length(psi)-1
+        # Reshape & SVD
+        tensor, cmb = combineidxs(tensor, [collect(2+rank(psi):length(size(tensor)))...])
+        U, S, tensor = svd(tensor, -1; kwargs...)
+        tensor = contract(S, tensor, 2, 1)
+        
+        # Store & put into the correct shape
+        push!(tensors, U)
+        tensor = reshape(tensor, (size(tensor)[1], cmb[2]...))
+    end
+    push!(tensors, tensor)
+
+    return GMPS(rank(psi), dim(psi), tensors, length(psi))
+end
+
+
+### Boundary MPS; used for PEPS
 """
     bGMPS(chi::Int, bonddims::Vector{Int}...)
 

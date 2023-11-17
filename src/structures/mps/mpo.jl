@@ -468,3 +468,31 @@ function expand(O::Array{}, D1, D2)
     newO[dims[1]+D1, :, :, dims[4]+D2] = O[dims[1], :, :, dims[4]]
     return newO
 end
+
+
+### Applying to quantum states 
+"""
+    applyMPO(::GMPS, psi::GQS)
+    applyMPO(psi::GQS, O::GMPS)
+    *(::GMPS, psi::GQS;)
+    *(psi::GQS, O::GMPS)
+
+Multiply a quantum state by an MPO.
+"""
+function applyMPO(O::GMPS, psi::GQS)
+    # Check properties
+    (rank(O) != 2) && error("GMPS must be rank 2.")
+    length(psi) != length(O) && error("GMPS and GQS must be the same length.")
+
+    # Apply MPO 
+    tensor = reshape(psi.tensor, (size(psi.tensor)..., 1))
+    for i = 1:length(psi)
+        tensor = contract(tensor, O[i], [length(size(tensor)), rank*(i-1)+1], [1, 3])
+        tensor = moveidx(tensor, size(tensor)-1, rank*(i-1)+1)
+    end
+
+    return GQS(rank(psi), dim(psi), length(psi), tensor)
+end
+applyMPO(psi::GQS, O::GMPS) = applyMPO(adjoint(O), psi)
+*(O::GMPS, psi::GQS) = applyMPO(O, psi)
+*(psi::GQS, O::GMPS) = applyMPO(psi, O)
