@@ -120,6 +120,8 @@ function trotterize(st::Sitetypes, ops::OpList, dt::Float64; kwargs...)
     return gl
 end
 
+
+### Applying gates to GMPS
 """
     applygate(psi::GMPS, site::Int, gate, direction::Bool = false; kwargs...)
 
@@ -199,7 +201,6 @@ function applygates(psi::GMPS, gates::GateList; kwargs...)
         # Determine the distance to the center from each and decide where to go
         direction = abs(center(psi) - firstsite) < abs(center(psi) - lastsite) ? false : true
 
-        # Apply the gates in the row
         for i = 1:length(gates.gates[row])
             # Determine the gate
             gate = direction ? length(gates.gates[row]) + 1 - i : i
@@ -223,4 +224,33 @@ end
 
 function applygates!(psi::GMPS, gates::GateList; kwargs...)
     error = applygates(psi, gates; error=false, kwargs...)
+end
+
+
+function applygates!(psi::GQS, gates::GateList)
+    # Apply the sequences in order
+    for row = 1:length(gates.gates)
+        for i = 1:length(gates.gates[row])
+            # Apply the gate
+            applygate!(psi, gates.sites[row][i], gates.gates[row][i])
+        end
+    end
+end
+
+function applygate!(psi::GQS, site::Int, gate)
+    # Find the interaction range of the gate
+    rng = gatesize(gate)
+
+    # Contract with the gate
+    r = rank(psi)
+    tensor = contract(psi.tensor, gate, [r*(site-2+i)+1 for i = 1:rng], [2*i for i = 1:rng])
+
+    # Move idxs to the correct place
+    for i = 1:rng
+        tensor = moveidx(tensor, length(size(tensor))-rng+i, r*(site-2+i)+1)
+    end
+
+    # Update the tensor
+    psi.tensor = tensor
+    return nothing
 end

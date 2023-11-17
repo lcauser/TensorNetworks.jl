@@ -206,6 +206,7 @@ function trace(args::GQS...)
     end
     
     # Trace indexs 
+    prod = prod.tensor
     for _ = 1:length(args[1])
         prod = trace(prod, 1, 2)
     end

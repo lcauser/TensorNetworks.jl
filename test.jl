@@ -3,7 +3,7 @@ using .TensorNetworks
 using KrylovKit
 
 N = 10
-s = 0.1
+s = 1.0
 sh = spinhalf()
 psi = productQS(sh, ["dn" for _ = 1:N])
 
@@ -16,15 +16,10 @@ for i = 1:N-1
 end
 H = QO(sh, Hlist)
 
-E1 = psi * H * psi
-E2 = psi * (H * psi)
+gates = trotterize(sh, -1*Hlist, 0.1)
 
-psiMPS = productMPS(sh, ["dn" for _ = 1:N])
-HMPO = MPO(sh, Hlist)
-E3 = inner(psiMPS, HMPO, psiMPS)
-
-psitest = GMPS(psi; cutoff=1e-12)
-Htest = GMPS(H; cutoff=1e-12)
-
-f(x) = H * x
-eig, vec = eigsolve(f, psi, 1, :SR)
+thermal = productQO(sh, ["id" for _ = 1:N])
+for i = 1:100
+    applygates!(thermal, gates)
+    println(trace(H, thermal) / trace(thermal))
+end
