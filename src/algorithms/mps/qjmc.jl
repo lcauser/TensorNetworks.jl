@@ -25,7 +25,7 @@ function qjmc_gates(st::Sitetypes, H::OpList, jumpops::OpList, dt; kwargs...)
     return Heff, gates
 end
 
-function qjmc_simulation(st::Sitetypes, psi::GMPS, Hs::OpList, jumpops::OpList,
+function qjmc_simulation(st::Sitetypes, psi::GMPS, H::OpList, jumpops::OpList,
                          tmax::Real, dt::Real, observers=[]; kwargs...)
     # Set the save time and the steps
     save::Real = get(kwargs, :save, 0)
@@ -90,6 +90,29 @@ function qjmc_simulation(st::Sitetypes, psi::GMPS, Hs::OpList, jumpops::OpList,
             normalize!(psi)
 
             # Classical simulation
+            rates = qjmc_emission_rates(st, psi, jumpops)
+            er = sum(rates)
+            prob = exp(-er*dt)
+
+            if rand() > prob 
+                # Pick the transition
+                r = rand()
+                idx = findfirst([r < x for x = (cumsum(rates) / er)])
+
+                # Apply it
+                movecenter!(psi, 1)
+                applyop!(st, psi, jumpops.ops[idx], jumpops.sites[idx])
+                movecenter!(psi, length(psi))
+                movecenter!(psi, 1; cutoff=cutoff, maxdim=maxdim, mindim=mindim)
+                normalize!(psi)
+
+                # Store the jump
+                push!(jumps, idx)
+                push!(jumptimes, time+dt)
+            end
+
+            """
+            # Classical simulation
             class_t = 0
             while class_t < dt
                 # Calculate jump rates & check if a jump will happen
@@ -122,6 +145,7 @@ function qjmc_simulation(st::Sitetypes, psi::GMPS, Hs::OpList, jumpops::OpList,
 
                 end
             end
+            """
         end
 
         time += dt
