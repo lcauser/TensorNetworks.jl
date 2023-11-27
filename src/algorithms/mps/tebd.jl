@@ -85,7 +85,7 @@ function tebd(st::Sitetypes, psi::GMPS, H::OpList, dt::Number, tmax::Number,
 
         # Print information and check for convergence
         if step % nsave == 0
-            @printf("time=%d, energy=%.12f, maxbonddim=%d \n",
+            @printf("time=%.4f, energy=%.12f, maxbonddim=%d \n",
                     step*dt, energy, maxbonddim(psi))
             energy = real(sum(inner(st, psi, H, psi)))
             for observer = observers
