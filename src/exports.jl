@@ -165,9 +165,6 @@ export
     iMPS,
     iMPO,
 
-    #algorithms/mps/itebd.jl: tebd for infinite mps
-    itebd,
-
 
     ##### Generalized projected entangled pair states #####
     #structures/peps/oplist2d.jl: Lists of operators in 2d lattices

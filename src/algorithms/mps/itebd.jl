@@ -43,9 +43,9 @@ function itebd(st::Sitetypes, psi::iGMPS, H::OpList, dt::Number, tmax::Number,
     # Evolve the iMPS
     for iter = 1:maxiters
         if psi.rank == 1
-            itebd_apply_gates_mps!(psi, gate, mindim, maxdim, cutoff)
+            _itebd_apply_gates_mps!(psi, gate, mindim, maxdim, cutoff)
         else
-            itebd_apply_gates_mpo!(psi, gate, mindim, maxdim, cutoff)
+            _itebd_apply_gates_mpo!(psi, gate, mindim, maxdim, cutoff)
         end
         time = round(time + dt, digits=8)
         if time in observer_times
@@ -68,54 +68,57 @@ function itebd(st::Sitetypes, psi::iGMPS, H::OpList, dt::Number, tmax::Number,
 end
 
 
-function itebd_apply_gates_mps!(psi::iGMPS, gate::Array{ComplexF64}, mindim::Int,
+function _itebd_apply_gates_mps!(psi::iGMPS, gate::Array{ComplexF64}, mindim::Int,
                                maxdim::Int, cutoff::Float64)
     # Loop through the cell
-    for i = 1:2
-        # Find the order of tensor
-        idxs = [i-1, i] .% 2 .+ 1
+    for i = 1:length(psi)
+        # Find the order of tensors 
+        idxs = collect(i-1:i-2+length(psi)) .% length(psi) .+ 1
 
         # Do the contraction
         prod = diagm(psi.singulars[idxs[1]])
-        prod = contract(prod, psi.tensors[idxs[1]], 2, 1)
-        prod = contract(prod, diagm(psi.singulars[idxs[2]]), 3, 1)
-        prod = contract(prod, psi.tensors[idxs[2]], 3, 1)
-        prod = contract(prod, diagm(psi.singulars[idxs[1]]), 4, 1)
+        for j = 1:length(psi)
+            prod = contract(prod, psi.tensors[idxs[j]], 1+j, 1)
+            j2 = j+1 > length(psi) ? 1 : j+1
+            prod = contract(prod, diagm(psi.singulars[idxs[j2]]), 2+j, 1)
+        end
 
         # Apply gate
-        prod = contract(gate, prod, [2, 4], [2, 3])
-        prod = moveidx(prod, 1, 3)
-        prod = moveidx(prod, 1, 3)
+        prod = contract(prod, gate, [1+j for j=1:length(psi)], [2*j for j=1:length(psi)])
+        prod = moveidx(prod, 2, length(size(prod)))
 
         # SVD
-        prod, cmb = combineidxs(prod, [1, 2])
-        prod, cmb = combineidxs(prod, [1, 2])
-        U, S, V = svd(prod, 2; mindim=mindim, maxdim=maxdim, cutoff=cutoff)
-
-        # Reshape into the correct tensors
-        U = moveidx(U, 1, 2)
-        U = reshape(U, (size(S)[1], size(psi.tensors[idxs[1]])[1], psi.dim))
-        U = moveidx(U, 1, 3)
-        V = reshape(V, (size(S)[2], psi.dim, size(psi.tensors[idxs[2]])[3]))
+        tensors = []
+        singulars = []
+        for  _ = 1:length(psi)-1
+            prod, cmb = combineidxs(prod, collect(3:length(size(prod))))
+            U, S, prod = svd(prod, 3; mindim=mindim, maxdim=maxdim, cutoff=cutoff)
+            push!(tensors, U)
+            push!(singulars, diag(S))
+            prod = reshape(prod, (size(S)[1], cmb[2]...))
+        end
+        push!(tensors, prod)
 
         # Multiply in singular values
-        U = contract(diagm(1 ./ psi.singulars[idxs[1]]), U, 2, 1)
-        V = contract(V, diagm(1 ./ psi.singulars[idxs[1]]), 3, 1)
+        tensors[begin] = contract(diagm(1 ./ psi.singulars[idxs[1]]), tensors[begin], 2, 1)
+        tensors[end] = contract(tensors[end], diagm(1 ./ psi.singulars[idxs[1]]), 3, 1)
 
-        # Stop S growing to large
-        S = diag(S)
-        psi.norms[idxs[2]] += log(sqrt(sum(S.^2)))
-        S ./= sqrt(sum(S.^2))
+        # Stop S growing to large, update singulars 
+        for j = 2:length(psi)
+            psi.norms[idxs[j]] += log(sqrt(sum(singulars[j-1].^2)))
+            singulars[j-1] ./= sqrt(sum(singulars[j-1].^2))
+            psi.singulars[idxs[j]] = singulars[j-1]
+        end
 
         # Update tensors
-        psi.singulars[idxs[2]] = S
-        psi.tensors[idxs[1]] = U
-        psi.tensors[idxs[2]] = V
+        for j = 1:length(psi)
+            psi.tensors[idxs[j]] = tensors[j]
+        end
     end
 end
 
 
-function itebd_apply_gates_mpo!(psi::iGMPS, gate::Array{ComplexF64}, mindim::Int,
+function _itebd_apply_gates_mpo!(psi::iGMPS, gate::Array{ComplexF64}, mindim::Int,
                                maxdim::Int, cutoff::Float64)
     # Loop through the cell
     for i = 1:2

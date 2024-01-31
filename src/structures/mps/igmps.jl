@@ -195,7 +195,7 @@ function build(psis::iGMPS...; kwargs...)
         left = buildleft(psis..., left, i)
         right = buildright(psis..., right, length(psis[1])+1-i)
         push!(lefts, left)
-        push!(rights, right)
+        pushfirst!(rights, right)
     end
 
     return lefts, rights
@@ -252,7 +252,9 @@ function inner(st::Sitetypes, phi::iGMPS, ops::Vector{String}, psi::iGMPS, sites
     for i = 1:length(psi)
         # Find relevent boundaries
         left = lefts[i]
-        right = rights[length(psi) - ((rng + i) % length(psi))]
+        site = (i + rng - 2) % length(psi) + 1
+        right = rights[site]
+        #right = rights[length(psi) - ((rng + i) % length(psi))]
 
         # Contract with and without observables
         prod_obs = left
