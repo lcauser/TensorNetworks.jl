@@ -59,10 +59,6 @@ function leftOrthonormalise(A::Array{T}, L::Array{Q}, η::S=1e-12) where {T<:Num
         λ = norm(L)
         L = L ./ λ
         δ = norm(L .- Lold)
-        #println(abs.(contract(A, L, 3, 1) ./ contract(L, Al, 2, 1)))
-        #println(norm(contract(A, L, 3, 1) .- contract(L, Al, 2, 1)))
-        println(δ)
-
     end
     
     return Al, L, λ
@@ -99,7 +95,6 @@ function rightOrthonormalise(A::Array{T}, R::Array{Q}, η::S=1e-12) where {T<:Nu
         λ = norm(R)
         R = R ./ λ
         δ = norm(R .- Rold)
-        println(δ)
     end
 
     return Ar, R, λ
