@@ -171,7 +171,7 @@ function OpList(oplist::InfiniteOpList)
         coeff = rng - rng_i + 1 
 
         # Add to the operator list translationally invariant 
-        for j = 1:rng - rng_i + 1
+        for j = 1:coeff
             add!(finite_oplist, oplist.ops[i], oplist.sites[i] .+ (j - 1),
                  oplist.coeffs[i] / coeff)
         end
