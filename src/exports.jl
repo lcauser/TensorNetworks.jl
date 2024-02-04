@@ -8,6 +8,8 @@ export
     combineidxs,
     uncombineidxs,
     moveidx,
+    qr,
+    lq,
 
     #sitetypes.jl: Creating bases for lattice
     Sitetypes,
@@ -55,6 +57,10 @@ export
     totensor,
     sitetensor,
 
+    #structures/mps/infiniteoplist.jl: dealing with infinite operators
+    InfiniteOpList,
+    totensor,
+
     #structures/mps/abstractmps.jl
     AbstractMPS,
     dim,
@@ -101,6 +107,13 @@ export
     buildleft,
     buildright,
     randomenv,
+
+    #stuctures/mps/ugmps.jl: Uniform matrix product states
+    uMPS,
+    randomUMPS,
+    leftOrthonormalise,
+    rightOrthonormalise,
+    mixedCanonical,
 
     #structures/mps/gatelist.jl: gates and trotterization
     GateList,

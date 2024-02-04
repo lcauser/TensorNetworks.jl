@@ -36,6 +36,7 @@ include("lattices/spinhalf.jl")
 ######################################
 # Operator lists 
 include("structures/mps/oplist.jl")
+include("structures/mps/infiniteoplist.jl")
 
 ######################################
 # Quantum states (exact...)
