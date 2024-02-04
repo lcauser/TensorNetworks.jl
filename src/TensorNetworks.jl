@@ -56,6 +56,7 @@ include("structures/mps/abstractprojmps.jl")
 include("structures/mps/projmps.jl")
 include("structures/mps/projmpssum.jl")
 include("structures/mps/gatelist.jl")
+include("structures/mps/umps.jl")
 
 
 ######################################
