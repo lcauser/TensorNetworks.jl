@@ -33,13 +33,13 @@ maxbonddim(psi::uMPS) = size(psi.Al)[1]
 
 ### Orthogonalisation 
 """
-    leftOrthonormalise(A::Array{<:Number}, L::Array{<:Number}, η<:Real=1e-14)
-    leftOrthonormalise(A::Array{<:Number}, η<:Real=1e-14)
+    leftOrthonormalise(A::Array{<:Number}, L::Array{<:Number}, η<:Real=1e-12)
+    leftOrthonormalise(A::Array{<:Number}, η<:Real=1e-12)
 
 Iteratively find the left canonical orthogonalisation of an array A.
 L is some initial guess for orthogonalisation, η is a tolerance.
 """
-function leftOrthonormalise(A::Array{T}, L::Array{Q}, η::S=1e-14) where {T<:Number, Q<:Number, S<:Real}
+function leftOrthonormalise(A::Array{T}, L::Array{Q}, η::S=1e-12) where {T<:Number, Q<:Number, S<:Real}
     # Normalise L
     L /= norm(L)
 
@@ -59,23 +59,27 @@ function leftOrthonormalise(A::Array{T}, L::Array{Q}, η::S=1e-14) where {T<:Num
         λ = norm(L)
         L = L ./ λ
         δ = norm(L .- Lold)
+        #println(abs.(contract(A, L, 3, 1) ./ contract(L, Al, 2, 1)))
+        #println(norm(contract(A, L, 3, 1) .- contract(L, Al, 2, 1)))
+        println(δ)
+
     end
     
     return Al, L, λ
 end
 
-function leftOrthonormalise(A::Array{T}, η::S=1e-14) where {T<:Number, S<:Real}
+function leftOrthonormalise(A::Array{T}, η::S=1e-12) where {T<:Number, S<:Real}
     return leftOrthonormalise(A, rand(ComplexF64, size(A)[[1, 3]]...), η)
 end
 
 """
-    rightOrthonormalise(A::Array{<:Number}, R::Array{<:Number}, η<:Real=1e-14)
-    rightOrthonormalise(A::Array{<:Number}, η<:Real=1e-14)
+    rightOrthonormalise(A::Array{<:Number}, R::Array{<:Number}, η<:Real=1e-12)
+    rightOrthonormalise(A::Array{<:Number}, η<:Real=1e-12)
 
 Find the right canonical orthogonalisation of an array A.
 R is some initial guess for orthogonalisation, η is a tolerance.
 """
-function rightOrthonormalise(A::Array{T}, R::Array{Q}, η::S=1e-16) where {T<:Number, Q<:Number, S<:Real}
+function rightOrthonormalise(A::Array{T}, R::Array{Q}, η::S=1e-12) where {T<:Number, Q<:Number, S<:Real}
     # Normalise R
     R /= norm(R)
 
@@ -95,26 +99,27 @@ function rightOrthonormalise(A::Array{T}, R::Array{Q}, η::S=1e-16) where {T<:Nu
         λ = norm(R)
         R = R ./ λ
         δ = norm(R .- Rold)
+        println(δ)
     end
 
     return Ar, R, λ
 end
 
-function rightOrthonormalise(A::Array{T}, η::S=1e-16) where {T<:Number, S<:Real}
+function rightOrthonormalise(A::Array{T}, η::S=1e-12) where {T<:Number, S<:Real}
     return rightOrthonormalise(A, rand(ComplexF64, size(A)[[1, 3]]...), η)
 end
 
 """
-    mixedCanonical(A::Array{<:Number}, η<:Real=1e-12)
+    mixedCanonical(A::Array{<:Number}, η<:Real=1e-14)
 
 Put some tensor A into mixed canonical form.
 """
-function mixedCanonical(A::Array{T}, η::S=1e-12) where {T<:Number, S<:Real}
+function mixedCanonical(A::Array{T}, η::S=1e-14) where {T<:Number, S<:Real}
     Al, _, λ = leftOrthonormalise(A, η)
     Ar, C, _ = rightOrthonormalise(Al, η)
     U, C, V = svd(C, 2) 
     Al = contract(conj(U), contract(Al, U, 3, 1), 1, 1)
-    Ar = contract(conj(V), contract(Ar, V, 3, 1), 1, 1)
+    Ar = contract(V, contract(Ar, conj(V), 3, 2), 2, 1)
 
     return Al, Ar, C, λ
 end

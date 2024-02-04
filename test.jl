@@ -34,3 +34,8 @@ obs2 = inner(psi, mpo)
 
 A1 = contract(psi.Al, psi.C, 3, 1)
 A2 = contract(psi.C, psi.Ar, 2, 1)
+
+A = rand(ComplexF64, 4, 2, 4)
+A /= norm(A)
+Al, L, lambdal = leftOrthonormalise(A, 1e-14)
+Ar, R, lambdar = rightOrthonormalise(A, 1e-14)
