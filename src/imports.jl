@@ -74,6 +74,9 @@ import KrylovKit:
     expand!,
     linsolve
 
+import MatrixFactorizations:
+    polar
+
 #import IterativeSolvers:
 #    lsmr!,
 #    lsqr!

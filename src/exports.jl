@@ -114,6 +114,8 @@ export
     leftOrthonormalise,
     rightOrthonormalise,
     mixedCanonical,
+    leftEnvironment,
+    rightEnvironment,
 
     #structures/mps/gatelist.jl: gates and trotterization
     GateList,

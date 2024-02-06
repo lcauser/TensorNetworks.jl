@@ -112,9 +112,9 @@ Put some tensor A into mixed canonical form.
 function mixedCanonical(A::Array{T}, η::S=1e-14) where {T<:Number, S<:Real}
     Al, _, λ = leftOrthonormalise(A, η)
     Ar, C, _ = rightOrthonormalise(Al, η)
-    U, C, V = svd(C, 2) 
-    Al = contract(conj(U), contract(Al, U, 3, 1), 1, 1)
-    Ar = contract(V, contract(Ar, conj(V), 3, 2), 2, 1)
+    #U, C, V = svd(C, 2) 
+    #Al = contract(conj(U), contract(Al, U, 3, 1), 1, 1)
+    #Ar = contract(V, contract(Ar, conj(V), 3, 2), 2, 1)
 
     return Al, Ar, C, λ
 end
@@ -166,6 +166,11 @@ end
 
 
 ### Expectation of MPOs 
+"""
+    inner(psi::uMPS, O::GMPS)
+
+Calculate the expectation of an MPO with a uniform MPS.
+"""
 function inner(psi::uMPS, O::GMPS)
     # Contract the centre 
     prod = contract(conj(psi.C), psi.C, 1, 1)
@@ -180,6 +185,85 @@ function inner(psi::uMPS, O::GMPS)
     end
 
     prod = trace(prod, 1, 3)
-
     return prod[]
+end
+
+
+### Finding the left and right contributions to a translationally invariant
+### operator 
+
+function leftEnvironment(psi::uMPS, O::GMPS, h::Q, HL::Array{S}; kwargs...) where {Q<:Number, S<:Number}
+    # Contract with the MPO to find the constant 
+    V = diagm(ones(ComplexF64, maxbonddim(psi)))
+    V = tensorproduct(V, ones(ComplexF64, 1))
+    V = moveidx(V, 3, 2)
+    for i in eachindex(O.tensors)
+        V = contract(V, conj(psi.Al), 1, 1)
+        V = contract(V, O[i], [1, 3], [1, 2])
+        V = contract(V, psi.Al, [1, 3], [1, 2])
+    end
+    V = V[:, 1, :] .- h*diagm(ones(ComplexF64, maxbonddim(psi)))
+
+    # Iteratively solve 
+    f(x) = _left_env_projection(psi, x)
+
+    tol::Float64 = get(kwargs, :tol, 1e-10)
+    HL, _ = linsolve(f, V, HL; tol=tol)
+
+    return HL
+end
+
+function leftEnvironment(psi::uMPS, O::GMPS, h::Q; kwargs...) where {Q<:Number}
+    HL = rand(ComplexF64, maxbonddim(psi), maxbonddim(psi))
+    return leftEnvironment(psi, O, h, HL; kwargs...)
+end
+
+function _left_env_projection(psi::uMPS, HL::Array{T}) where {T<:Number}
+    # Find the right fixed point
+    R = contract(psi.C, conj(psi.C), 2, 2)
+
+    # Contract the guess L with the tensors Al
+    prod = contract(HL, conj(psi.Al), 1, 1)
+    prod = contract(prod, psi.Al, [1, 2], [1, 2])
+    prod2 = contract(HL, R, [1, 2], [1, 2]) .* diagm(ones(ComplexF64, size(prod)[1]))
+    return HL .- prod .+ prod2
+end
+
+
+function rightEnvironment(psi::uMPS, O::GMPS, h::Q, HR::Array{S}; kwargs...) where {Q<:Number, S<:Number}
+    # Contract with the MPO to find the constant 
+    V = diagm(ones(ComplexF64, maxbonddim(psi)))
+    V = tensorproduct(V, ones(ComplexF64, 1))
+    V = moveidx(V, 3, 2)
+    for i in reverse(eachindex(O.tensors))
+        V = contract(psi.Ar, V, 3, 3)
+        V = contract(O[i], V, [3, 4], [2, 4])
+        V = contract(conj(psi.Ar), V, [2, 3], [2, 4])
+    end
+    V = V[:, 1, :] .- h*diagm(ones(ComplexF64, maxbonddim(psi)))
+
+    # Iteratively solve 
+    f(x) = _right_env_projection(psi, x)
+
+    tol::Float64 = get(kwargs, :tol, 1e-10)
+    HR, _ = linsolve(f, V, HR; tol=tol)
+
+    return HR
+end
+
+function rightEnvironment(psi::uMPS, O::GMPS, h::Q; kwargs...) where {Q<:Number}
+    HR = rand(ComplexF64, maxbonddim(psi), maxbonddim(psi))
+    return rightEnvironment(psi, O, h, HR; kwargs...)
+end
+
+
+function _right_env_projection(psi::uMPS, HR::Array{T}) where {T<:Number}
+    # Calculate left fixed point
+    L = contract(conj(psi.C), psi.C, 1, 1)
+
+    # Contract the guess L with the tensors Al
+    prod = contract(psi.Ar, HR, 3, 2)
+    prod = contract(conj(psi.Ar), prod, [2, 3], [2, 3])
+    prod2 = contract(L, HR, [1, 2], [1, 2]) .* diagm(ones(ComplexF64, size(prod)[1]))
+    return HR .- prod .+ prod2
 end

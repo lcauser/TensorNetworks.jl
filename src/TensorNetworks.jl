@@ -12,6 +12,7 @@ using MKL
 using HDF5
 using KrylovKit
 using LinearAlgebra
+using MatrixFactorizations
 
 
 #####################################
