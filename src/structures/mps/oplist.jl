@@ -1,8 +1,8 @@
-mutable struct OpList
+mutable struct OpList{Q<:Number}
     length::Int
     ops::Vector{Vector{String}}
     sites::Vector{Vector{Int}}
-    coeffs::Vector{Complex{Float64}}
+    coeffs::Vector{Q}
 end
 
 """
@@ -10,7 +10,7 @@ end
 
 Create a list of operators acting on a lattice.
 """
-OpList(length::Int) = OpList(length, [], [], [])
+OpList(length::Int) = OpList(length, Vector{String}[], Vector{Int}[], ComplexF64[])
 
 length(oplist::OpList) = oplist.length
 
@@ -25,13 +25,13 @@ end
 ### Add to the list
 """
     add!(oplist::OpList, ops::Vector{String}, sites::Vector{Int},
-         coeff::Complex{Float64} = 1)
-    add!(oplist::OpList, op::String, site::Int, coeff::Complex{Float64} = 1)
+         coeff<:Number = 1)
+    add!(oplist::OpList, op::String, site::Int, coeff<:Number = 1)
 
 Add an operator to the list defined by local operators at given sites.
 """
 function add!(oplist::OpList, ops::Vector{String}, sites::Vector{Int},
-              coeff::Number = 1.0)
+              coeff::Q = 1.0) where {Q<:Number}
     # Validate the data
     length(ops) != length(sites) && error("The lists must be the same length.")
 
@@ -54,7 +54,7 @@ function add!(oplist::OpList, ops::Vector{String}, sites::Vector{Int},
     push!(oplist.coeffs, coeff)
 end
 
-function add!(oplist::OpList, op::String, site::Int, coeff::Number = 1.0)
+function add!(oplist::OpList, op::String, site::Int, coeff::Q = 1.0) where {Q<:Number}
     add!(oplist, [op], [site], coeff)
 end
 
@@ -74,9 +74,10 @@ function add(oplist1::OpList, oplist2::OpList)
     append!(oplist.coeffs, oplist2.coeffs)
     return oplist
 end
++(oplist1::OpList, oplist2::OpList) = add(oplist1, oplist2)
 
 
-function *(x::Number, y::OpList)
+function *(x::Q, y::OpList) where {Q<:Number}
     y = deepcopy(y)
     for i = 1:length(y.coeffs)
         y.coeffs[i] *= x
@@ -84,6 +85,13 @@ function *(x::Number, y::OpList)
     return y
 end
 
+function *(x::OpList, y::Q) where {Q<:Number}
+    return *(y, x)
+end
+
+function /(x::OpList, y::Q) where {Q<:Number}
+    return *((1/y), x)
+end
 
 ### Determine properties about the operator list
 """
@@ -122,6 +130,7 @@ end
 
 Construct the tensor from an operator in an oplist.
 """
+### TODO: swap arguments st and oplist
 function totensor(oplist::OpList, st::Sitetypes, idx::Int)
     # Fetch the relevent information
     ops = oplist.ops[idx]

@@ -33,8 +33,8 @@ function tensorproduct(x::Array{}, y::Array{})
 
     dims1 = [i for i = 1:sz1]
     dims2 = [sz1+i for i = 1:sz2]
-    #dims3 = [i for i = 1:sz1+sz2]
-    #return tensorproduct(dims3, x, dims1, y, dims2)
+    dims3 = [i for i = 1:sz1+sz2]
+    return tensorproduct(dims3, x, dims1, y, dims2)
 
     return tensorproduct(x, dims1, y, dims2)
 end
@@ -225,6 +225,12 @@ function qr(x::Array{}, idx::Int)
     Q = Matrix(t.Q)
     R = t.R
 
+    # Enforce that the diagonal elements of R are positive 
+    M = diagm([real(R[i, i]) < 0.0 ? -1 : 1 for i in eachindex(R[1, :])])
+    Q = contract(Q, M, 2, 1)
+    R = contract(M, R, 2, 1)
+
+
     # Ungroup the indexs
     Q = moveidx(Q, 2, 1)
     Q = uncombineidxs(Q, cmb)
@@ -255,6 +261,11 @@ function lq(x::Array{}, idx::Int)
     t = lq(y)
     Q = Matrix(t.Q)
     L = t.L
+
+    # Enforce that the diagonal elements of L are positive 
+    M = diagm([real(L[i, i]) < 0.0 ? -1 : 1 for i in eachindex(L[1, :])])
+    L = contract(L, M, 2, 1)
+    Q = contract(M, Q, 2, 1)
 
     # Ungroup the indexs
     Q = uncombineidxs(Q, cmb)

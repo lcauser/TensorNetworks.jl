@@ -12,6 +12,7 @@ using MKL
 using HDF5
 using KrylovKit
 using LinearAlgebra
+using MatrixFactorizations
 
 
 #####################################
@@ -36,6 +37,7 @@ include("lattices/spinhalf.jl")
 ######################################
 # Operator lists 
 include("structures/mps/oplist.jl")
+include("structures/mps/infiniteoplist.jl")
 
 ######################################
 # Quantum states (exact...)
@@ -55,6 +57,7 @@ include("structures/mps/abstractprojmps.jl")
 include("structures/mps/projmps.jl")
 include("structures/mps/projmpssum.jl")
 include("structures/mps/gatelist.jl")
+include("structures/mps/umps.jl")
 
 
 ######################################
@@ -65,6 +68,7 @@ include("algorithms/mps/dmrgx.jl")
 include("algorithms/mps/tebd.jl")
 include("algorithms/mps/qjmc.jl")
 include("lattices/qkcms.jl")
+include("algorithms/mps/vumps.jl")
 
 
 ######################################
