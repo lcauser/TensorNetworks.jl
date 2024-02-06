@@ -192,6 +192,15 @@ end
 ### Finding the left and right contributions to a translationally invariant
 ### operator 
 
+"""
+    leftEnvironment(psi::uMPS, O::GMPS, h<:Number; kwargs...) 
+    leftEnvironment(psi::uMPS, O::GMPS, h<:Number, HL::Array{<:Number}; kwargs...) 
+
+Calculate the contributions of a translationally invariant opeartor from the
+left of the orthogonal center, with each local term shifted by h.This is
+calculated analytically as a geometric sum, but numerically through iterative means.
+There is an option to provide an inital guess, HL.
+"""
 function leftEnvironment(psi::uMPS, O::GMPS, h::Q, HL::Array{S}; kwargs...) where {Q<:Number, S<:Number}
     # Contract with the MPO to find the constant 
     V = diagm(ones(ComplexF64, maxbonddim(psi)))
@@ -220,7 +229,7 @@ end
 
 function _left_env_projection(psi::uMPS, HL::Array{T}) where {T<:Number}
     # Find the right fixed point
-    R = contract(psi.C, conj(psi.C), 2, 2)
+    R = contract(conj(psi.C), psi.C, 1, 1)
 
     # Contract the guess L with the tensors Al
     prod = contract(HL, conj(psi.Al), 1, 1)
@@ -229,7 +238,15 @@ function _left_env_projection(psi::uMPS, HL::Array{T}) where {T<:Number}
     return HL .- prod .+ prod2
 end
 
+"""
+    rightEnvironment(psi::uMPS, O::GMPS, h<:Number; kwargs...) 
+    rightEnvironment(psi::uMPS, O::GMPS, h<:Number, HR::Array{<:Number}; kwargs...) 
 
+Calculate the contributions of a translationally invariant opeartor from the
+right of the orthogonal center, with each local term shifted by h. This is
+calculated analytically as a geometric sum, but numerically through iterative means.
+There is an option to provide an inital guess, HR.
+"""
 function rightEnvironment(psi::uMPS, O::GMPS, h::Q, HR::Array{S}; kwargs...) where {Q<:Number, S<:Number}
     # Contract with the MPO to find the constant 
     V = diagm(ones(ComplexF64, maxbonddim(psi)))
@@ -259,7 +276,7 @@ end
 
 function _right_env_projection(psi::uMPS, HR::Array{T}) where {T<:Number}
     # Calculate left fixed point
-    L = contract(conj(psi.C), psi.C, 1, 1)
+    L = contract(psi.C, conj(psi.C), 2, 2)
 
     # Contract the guess L with the tensors Al
     prod = contract(psi.Ar, HR, 3, 2)

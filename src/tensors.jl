@@ -33,8 +33,8 @@ function tensorproduct(x::Array{}, y::Array{})
 
     dims1 = [i for i = 1:sz1]
     dims2 = [sz1+i for i = 1:sz2]
-    #dims3 = [i for i = 1:sz1+sz2]
-    #return tensorproduct(dims3, x, dims1, y, dims2)
+    dims3 = [i for i = 1:sz1+sz2]
+    return tensorproduct(dims3, x, dims1, y, dims2)
 
     return tensorproduct(x, dims1, y, dims2)
 end

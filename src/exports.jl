@@ -174,6 +174,9 @@ export
     iTEBDNorm,
     iTEBDEnergy,
 
+    #algorithms/mps/vumps.jl: variational uniform matrix product states 
+    vumps,
+
     ##### Generalized infinite matrix produict staets ###
     #structures/mps/igmps.jl: infininte matrix product states
     iGMPS,
