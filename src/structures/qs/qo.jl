@@ -120,14 +120,14 @@ end
 
 function QOQOProduct(O1::GQS, O2::GQS; kwargs...)
     # Create a copy 
-    O = deepcopy(psi)
+    O = deepcopy(O1)
 
     # Multiply the tensors 
-    phi.tensor = contract(O1.tensor, O2.tensor, [2*i for i = 1:length(O)], [2*i-1 for i = 1:length(O)])
+    O.tensor = contract(O1.tensor, O2.tensor, [2*i for i = 1:length(O)], [2*i-1 for i = 1:length(O)])
 
     # Permute indices
     for i = 1:length(O)
-        O.tensor = moveidx(O.tensor, length(psi)+i, 2*i)
+        O.tensor = moveidx(O.tensor, length(O)+i, 2*i)
     end
     return O
 end
