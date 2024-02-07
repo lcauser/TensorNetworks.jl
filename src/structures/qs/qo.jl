@@ -241,3 +241,11 @@ function QO(st::Sitetypes, H::OpList; kwargs...)
 
     return GQS(2, d, N, Hops)
 end
+
+
+### Exponentiate a quantum operator 
+function exp(O::GQS)
+    O2 = GQS(O.rank, O.dim, O.length)
+    O2.tensor = exp(O.tensor, [2*i for i = 1:O.length])
+    return O2
+end

@@ -470,6 +470,54 @@ function expand(O::Array{}, D1, D2)
 end
 
 
+### Creating time-evolution MPOs from operator strings
+function trotterMPO(st::Sitetypes, H::OpList, t::R; kwargs...) where {R<:Number}
+    # Create an identity MPO
+    O = productMPO(st, ["id" for _ = 1:H.length])
+
+    for i in eachindex(H.ops)
+        # Create the operator exactly
+        O2 = productQO(st, H.ops[i])
+        O2 = exp(t*H.coeffs[i] * O2)
+
+        # Decompose into an MPO 
+        O2 = GMPS(O2; kwargs...)
+
+        # Fill in the gaps 
+        O3 = MPO(O.dim, length(O))
+        for j in 1:length(H.sites[i])
+            idx_start = j == 1 ? 1 : H.sites[i][j-1] + 1
+            idx_end = H.sites[i][j] - 1
+            if idx_start <= idx_end 
+                # Create identity tensor 
+                D = size(O2[j])[1]
+                tensor = zeros(ComplexF64, D, dim(O2), dim(O2), D)
+                for k = 1:D 
+                    tensor[k, :, :, k] = op(st, "id")
+                end
+
+                # Add to MPO 
+                for k = idx_start:idx_end
+                    O3[k] = deepcopy(tensor)
+                end
+            end
+            O3[idx_end+1] = deepcopy(O2[j])
+        end
+
+        # Add the final tensor 
+        tensor = zeros(ComplexF64, 1, dim(O2), dim(O2), 1)
+        tensor[1, :, :, 1] = op(st, "id")
+        for j = H.sites[i][end]+1:H.length
+            O3[j] = deepcopy(tensor)
+        end
+
+        # Apply to the full MPO 
+        O = applyMPO(O3, O; kwargs...)
+    end
+    return O
+end
+
+
 ### Applying to quantum states 
 """
     applyMPO(::GMPS, psi::GQS)

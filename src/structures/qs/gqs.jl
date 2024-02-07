@@ -12,7 +12,7 @@ mutable struct GQS{Q<:AbstractArray} <: AbstractQS
 end
 
 function GQS(rank::Int, dim::Int, length::Int)
-    return GQS(rank, dim, zeros(ComplexF64, [dim for _ = 1:rank*length]))
+    return GQS(rank, dim, length, zeros(ComplexF64, [dim for _ = 1:rank*length]...))
 end
 
 

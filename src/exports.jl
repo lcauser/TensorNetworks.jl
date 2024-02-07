@@ -99,6 +99,7 @@ export
     inner,
     trace,
     addMPOs,
+    trotterMPO,
 
     #stuctures/mps/igmps.jl: generalized infinite matrix product states
     iGMPS,
