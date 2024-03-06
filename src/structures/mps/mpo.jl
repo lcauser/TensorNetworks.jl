@@ -535,11 +535,11 @@ function applyMPO(O::GMPS, psi::GQS)
     # Apply MPO 
     tensor = reshape(psi.tensor, (size(psi.tensor)..., 1))
     for i = 1:length(psi)
-        tensor = contract(tensor, O[i], [length(size(tensor)), rank*(i-1)+1], [1, 3])
-        tensor = moveidx(tensor, size(tensor)-1, rank*(i-1)+1)
+        tensor = contract(tensor, O[i], [length(size(tensor)), rank(psi)*(i-1)+1], [1, 3])
+        tensor = moveidx(tensor, length(size(tensor))-1, rank(psi)*(i-1)+1)
     end
 
-    return GQS(rank(psi), dim(psi), length(psi), tensor)
+    return GQS(rank(psi), dim(psi), length(psi), reshape(tensor, size(psi.tensor)...))
 end
 applyMPO(psi::GQS, O::GMPS) = applyMPO(adjoint(O), psi)
 *(O::GMPS, psi::GQS) = applyMPO(O, psi)
