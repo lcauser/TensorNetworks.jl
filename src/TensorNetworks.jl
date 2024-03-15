@@ -9,9 +9,10 @@ module TensorNetworks
 # External packages
 #
 using MKL
+using LinearAlgebra
+using TensorOperations
 using HDF5
 using KrylovKit
-using LinearAlgebra
 using MatrixFactorizations
 
 

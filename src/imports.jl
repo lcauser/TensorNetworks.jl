@@ -60,13 +60,15 @@ import Printf:
 import Random: randn
 
 import TensorOperations:
+    contract_indices,
     tensorcopy,
     tensoradd,
     tensortrace,
     tensorcontract,
+    tensorcontract!,
     tensorproduct,
-    scalar,
-    @tensor
+    scalar
+    
 
 
 import KrylovKit:

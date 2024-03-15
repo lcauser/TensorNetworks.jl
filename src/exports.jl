@@ -1,6 +1,7 @@
 export
     # tensors.jl: only include main functions, maybe add more later
     contract,
+    contract!,
     tensorproduct,
     trace,
     exp,
