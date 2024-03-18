@@ -40,20 +40,21 @@ end
 
 
 """
-    tensorproduct(x::Array{}, y::Array{})
+    tensorproduct(x, y, conjx=false, conjy=false)
 
 Compute the tensor product of two tensors.
 """
-function tensorproduct(x::Array{}, y::Array{})
-    sz1 = length(size(x))
-    sz2 = length(size(y))
+function tensorproduct(x, y, conjx=false, conjy=false)
+    return contract(x, y, Int[], Int[], conjx, conjy)
+end
 
-    dims1 = [i for i = 1:sz1]
-    dims2 = [sz1+i for i = 1:sz2]
-    dims3 = [i for i = 1:sz1+sz2]
-    return tensorproduct(dims3, x, dims1, y, dims2)
+"""
+    tensorproduct!(z, x, y, conjx=false, conjy=false)
 
-    return tensorproduct(x, dims1, y, dims2)
+Compute the tensor product of two tensors x and y, and store the result in z.
+"""
+function tensorproduct!(z, x, y, conjx=false, conjy=false)
+    contract!(z, x, y, Int[], Int[], conjx, conjy)
 end
 
 
