@@ -3,6 +3,7 @@ export
     contract,
     contract!,
     tensorproduct,
+    tensorproduct!,
     trace,
     exp,
     svd,
