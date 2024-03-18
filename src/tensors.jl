@@ -1,24 +1,41 @@
 # Provides utilities to contract and manipulate tensors
 
 """
-    contract(x::Array{}, y::Array{}, idx1::Int, idx2::Int)
-    contract(x::Array{}, y::Array{}, idxs1::Vector{Int}, idxs2::Vector{Int})
+    contract(x, y, idx1::Int, idx2::Int, conjx::Bool=false, conjy::Bool=false)
+    contract(x, y, idxs1::Vector{Int}, idxs2::Vector{Int}, conjx::Bool=false, conjy::Bool=false)
 
-Contract two tensors across specified indexs.
+Contract two tensors across the specified indexs.
 """
-function contract(x::Array{}, y::Array{}, idx1::Int, idx2::Int)
-    sz = length(size(x))
-    dims1 = [i == idx1 ? 0 : i for i = 1:sz]
-    dims2 = [j == idx2 ? 0 : sz + j for j = 1:length(size(y))]
-    return tensorcontract(x, dims1, y, dims2)
+function contract(x, y, idx1::Int, idx2::Int, conjx::Bool=false, conjy::Bool=false)
+    return contract(x, y, [idx1], [idx2], conjx, conjy)
 end
 
-function contract(x::Array{}, y::Array{}, idxs1::Vector{Int}, idxs2::Vector{Int})
+function contract(x, y, idxs1::Vector{Int}, idxs2::Vector{Int}, conjx::Bool=false, conjy::Bool=false)
     length(idxs1) != length(idxs2) && error("The length of contracting indexs differ.")
-    labels = [-i for i = 1:length(idxs1)]
-    dims1 = [i in idxs1 ? -findall(x -> x == i, idxs1)[1] : i for i = 1:length(size(x))]
-    dims2 = [i in idxs2 ? -findall(x -> x == i, idxs2)[1] : i+length(size(x)) for i = 1:length(size(y))]
-    return tensorcontract(x, dims1, y, dims2)
+    dimsx = tuple([i in idxs1 ? -findall(x -> x == i, idxs1)[1] : i for i = 1:length(size(x))]...)
+    dimsy = tuple([i in idxs2 ? -findall(x -> x == i, idxs2)[1] : i+length(size(x)) for i = 1:length(size(y))]...)
+    return tensorcontract(x, dimsx, conjx ? :C : :N, y, dimsy, conjy ? :C : :N)
+end
+
+
+
+"""
+    contract!(z, x, y, idx1::Int, idx2::Int, conjx::Bool=false, conjy::Bool=false)
+    contract!(z, x, y, idxs1::Vector{Int}, idxs2::Vector{Int}, conjx::Bool=false, conjy::Bool=false)
+
+Contract two tensors x and y across the specified indexs, and store in z.
+"""
+function contract!(z, x, y, idx1::Int, idx2::Int, conjx::Bool=false, conjy::Bool=false)
+    return contract!(z, x, y, [idx1], [idx2], conjx, conjy)
+end
+
+function contract!(z, x, y, idxs1::Vector{Int}, idxs2::Vector{Int}, conjx::Bool=false, conjy::Bool=false)
+    length(idxs1) != length(idxs2) && error("The length of contracting indexs differ.")
+    dimsx = tuple([i in idxs1 ? -findall(x -> x == i, idxs1)[1] : i for i = 1:length(size(x))]...)
+    dimsy = tuple([i in idxs2 ? -findall(x -> x == i, idxs2)[1] : i+length(size(x)) for i = 1:length(size(y))]...)
+    dimsz = tuple(symdiff(dimsx, dimsy)...)
+    px, py, pz = TensorOperations.contract_indices(dimsx, dimsy, dimsz)
+    return tensorcontract!(z, pz, x, px, conjx ? :C : :N, y, py, conjy ? :C : :N)
 end
 
 
