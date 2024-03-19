@@ -26,7 +26,7 @@ end
 Contract two tensors x and y across the specified indexs, and store in z.
 """
 function contract!(z, x, y, idx1::Int, idx2::Int, conjx::Bool=false, conjy::Bool=false)
-    return contract!(z, x, y, [idx1], [idx2], conjx, conjy)
+    contract!(z, x, y, [idx1], [idx2], conjx, conjy)
 end
 
 function contract!(z, x, y, idxs1::Vector{Int}, idxs2::Vector{Int}, conjx::Bool=false, conjy::Bool=false)
@@ -35,7 +35,7 @@ function contract!(z, x, y, idxs1::Vector{Int}, idxs2::Vector{Int}, conjx::Bool=
     dimsy = tuple([i in idxs2 ? -findall(x -> x == i, idxs2)[1] : i+length(size(x)) for i = 1:length(size(y))]...)
     dimsz = tuple(symdiff(dimsx, dimsy)...)
     px, py, pz = TensorOperations.contract_indices(dimsx, dimsy, dimsz)
-    return tensorcontract!(z, pz, x, px, conjx ? :C : :N, y, py, conjy ? :C : :N)
+    tensorcontract!(z, pz, x, px, conjx ? :C : :N, y, py, conjy ? :C : :N)
 end
 
 
@@ -45,7 +45,11 @@ end
 Compute the tensor product of two tensors.
 """
 function tensorproduct(x, y, conjx=false, conjy=false)
-    return contract(x, y, Int[], Int[], conjx, conjy)
+    dimsx = tuple(1:length(size(x))...)
+    dimsy = tuple(length(size(x)):(length(size(x))+length(size(y)))...)
+    dimsz = tuple(1:(length(size(x))+length(size(y)))...)
+    px, py, pz = TensorOperations.contract_indices(dimsx, dimsy, dimsz)
+    tensorcontract!(z, pz, x, px, conjx ? :C : :N, y, py, conjy ? :C : :N)
 end
 
 """
@@ -54,7 +58,11 @@ end
 Compute the tensor product of two tensors x and y, and store the result in z.
 """
 function tensorproduct!(z, x, y, conjx=false, conjy=false)
-    contract!(z, x, y, Int[], Int[], conjx, conjy)
+    dimsx = tuple(1:length(size(x))...)
+    dimsy = tuple(length(size(x))+1:(length(size(x))+length(size(y)))...)
+    dimsz = tuple(1:(length(size(x))+length(size(y)))...)
+    px, py, pz = TensorOperations.contract_indices(dimsx, dimsy, dimsz)
+    tensorcontract!(z, pz, x, px, conjx ? :C : :N, y, py, conjy ? :C : :N)
 end
 
 
