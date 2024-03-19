@@ -46,7 +46,7 @@ Compute the tensor product of two tensors.
 """
 function tensorproduct(x, y, conjx=false, conjy=false)
     dimsx = tuple(1:length(size(x))...)
-    dimsy = tuple(length(size(x)):(length(size(x))+length(size(y)))...)
+    dimsy = tuple(length(size(x))+1:(length(size(x))+length(size(y)))...)
     dimsz = tuple(1:(length(size(x))+length(size(y)))...)
     px, py, pz = TensorOperations.contract_indices(dimsx, dimsy, dimsz)
     tensorcontract!(z, pz, x, px, conjx ? :C : :N, y, py, conjy ? :C : :N)
